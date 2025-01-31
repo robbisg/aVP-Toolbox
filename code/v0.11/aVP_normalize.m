@@ -79,7 +79,7 @@ Norm4mat='_normalized_4bc.mat';
 fullNorm4image='_full_normalized_4bc.nii.gz';
 
 sheet=1;
-side={'l','r' };
+sides={'l','r' };
 isbj=0;
 tablelength=[];
 
@@ -87,15 +87,15 @@ maxNslices=2500;
 ismask=0; % 0: use the combination of aVP segments. 1: use the individual aVP segments (not tested)
 
 fileID = fopen(strcat(StudyPath,'/data/sbj.list'));
-sss = textscan(fileID,'%s');
+subject_list = textscan(fileID,'%s');
 fclose(fileID);
 
-for sbj = sss{1}'
+for sbj = subject_list{1}'
     isbj=isbj+1;
 
-    for ss=1:2 ;     
+    for side=1:2 ;     
         clear cc_value
-        fname=strcat(inPath,'/',sbj{1},'/on_',side{ss})
+        fname=strcat(inPath,'/',sbj{1},'/on_',sides{side})
 
         if not(exist(strcat(fname,'.nii.gz')))
             disp(strcat('could not find: ',fname,'.nii.gz'))
@@ -109,103 +109,111 @@ for sbj = sss{1}'
         oo=aa;
         
         % will deal with coronal cuts through the data, so x,z (d1, d2) is the plane, and y is the slice (d3) ...
-        d1=size(aa.img,1);
-        d2=size(aa.img,3);
-        d3=size(aa.img,2);
+        x_dim=size(aa.img,1);
+        z_dim=size(aa.img,3);
+        y_dim=size(aa.img,2);
         
-        xdim_p2=aa.hdr.dime.pixdim(2);
-        zdim_p1=aa.hdr.dime.pixdim(4);
-        ydim=aa.hdr.dime.pixdim(3); 
+        x_resolution=aa.hdr.dime.pixdim(2);
+        z_resolution=aa.hdr.dime.pixdim(4);
+        y_resolution=aa.hdr.dime.pixdim(3); 
         
         % calcualte the center of the slice in order to be able to shift the centroid of the ROI there. 
-        centro=[d2/2 d1/2];
-        flag=0;
+        image_center=[z_dim/2 x_dim/2];
+        active_slice_counter=0;
         flagC=0;
+        
         table=[];
+        
         mmold=0;
         
-        for i=1:d3 % advance along y 
-            bb=squeeze(aa.img(:,i,:)); % take ith xz "slice", eliminating the other ys 
-            mm=max(max(bb));
-            if mm>0 % if max in slice not 0, there is someting in the "slice" it is active
+        for y=1:y_dim % advance along y 
+            selected_y_slice = squeeze(aa.img(:,y,:)); % take ith xz "slice", eliminating the other ys 
+            
+            max_voxel_value=max(max(selected_y_slice));
+            
+            if max_voxel_value>0 % if max in slice not 0, there is someting in the "slice" it is active
                 
                 % use flag as counter of active slices 
                 % use flagC to record changes in ON segment
-                if flag == 0 , 
+                if active_slice_counter == 0 , 
                     flagC=1; 
-                    mmold=mm;
+                    mmold=max_voxel_value;
                 else
-                    if not( mmold == mm ) ,
+                    if not( mmold == max_voxel_value ) ,
                         flagC = flagC +1 ;
                     end
                 end
-                flag=flag+1;
+                active_slice_counter=active_slice_counter+1;
                 
-                cc_value{flag}.current_slice_yz=flag;
-                cc_value{flag}.original_slice_yz=i;       
-                cc_value{flag}.flagC = flagC ;
-                cc_value{flag}.mm = mm ;
+                cc_value{active_slice_counter}.current_slice_yz=active_slice_counter;
+                cc_value{active_slice_counter}.original_slice_yz=y;       
+                cc_value{active_slice_counter}.flagC = flagC ;
+                cc_value{active_slice_counter}.mm = max_voxel_value ;
 
-% Deal with centering the mask in a new version of the image           
-                ll=bb>0; % binarize
-                st = regionprops( ll, 'centroid' ); % find the centroid
-                area0 = regionprops( ll, 'area' );
+                % Deal with centering the mask in a new version of the image           
+                
+                binarized_slice = selected_y_slice>0; % binarize
+                st = regionprops( binarized_slice, 'centroid' ); % find the centroid
+                area0 = regionprops( binarized_slice, 'area' );
                 temp_centroids = cat(1, st.Centroid);
                 centroids = temp_centroids(1,:); 
                 
-                vv = regionprops(ll,'centroid','Area','MajorAxisLength','MinorAxisLength','Eccentricity');
+                slice_properties = regionprops(binarized_slice,'centroid','Area','MajorAxisLength','MinorAxisLength','Eccentricity');
 
-                cc_value{flag}.majaxis = vv(1).MajorAxisLength*xdim_p2 ;
-                cc_value{flag}.minaxis = vv(1).MinorAxisLength*zdim_p1 ;
-                cc_value{flag}.area = vv(1).Area*xdim_p2*zdim_p1 ;
-                cc_value{flag}.eccent = vv(1).Eccentricity ;
+                cc_value{active_slice_counter}.majaxis = slice_properties(1).MajorAxisLength*x_resolution ;
+                cc_value{active_slice_counter}.minaxis = slice_properties(1).MinorAxisLength*z_resolution ;
+                cc_value{active_slice_counter}.area = slice_properties(1).Area*x_resolution*z_resolution ;
+                cc_value{active_slice_counter}.eccent = slice_properties(1).Eccentricity ;
                     
                 % shift the centroid of the region to the center of the image
-                cc=circshift(bb,[ centro(2)-round(centroids(2)) centro(1)-round(centroids(1)) ]);
-                cc_value{flag}.circshift=[ centro(2)-round(centroids(2)) centro(1)-round(centroids(1)) ];
+                cc = circshift(selected_y_slice,[ image_center(2)-round(centroids(2)) image_center(1)-round(centroids(1)) ]);
+                cc_value{active_slice_counter}.circshift=[ image_center(2)-round(centroids(2)) image_center(1)-round(centroids(1)) ];
               
                 % saves the mask (imask=1) or the segments
                 if ismask == 1
-                    oo.img(:,i,:)=sign(cc);
+                    oo.img(:,y,:)=sign(cc);
                 else
-                    oo.img(:,i,:)=cc;
+                    oo.img(:,y,:)=cc;
                 end
                 
-% the above eliminates the contribution to length associated with obliqueness of the 
-% optic nerve. 
-% To account for this, interpolate 10-fold via replication, then add or
-% remove interpolated slices to attain the ON length seen in the
-% original
+                % the above eliminates the contribution to length associated with obliqueness of the 
+                % optic nerve. 
+                % To account for this, interpolate 10-fold via replication, then add or
+                % remove interpolated slices to attain the ON length seen in the
+                % original
 
                 length_on=0;
-                cc_value{flag}.point = centroids;
-                cc_value{flag}.point_original = temp_centroids;
+                cc_value{active_slice_counter}.point = centroids;
+                cc_value{active_slice_counter}.point_original = temp_centroids;
 
-                cc_value{flag}.distance = 0;
-                cc_value{flag}.length_on = length_on;
+                cc_value{active_slice_counter}.distance = 0;
+                cc_value{active_slice_counter}.length_on = length_on;
 
-                cc_value{flag}.slice=oo.img(:,i,:);
+                cc_value{active_slice_counter}.slice=oo.img(:,y,:);
 
                 % replicate the slice 10 times
-                for kk=1:10, cc_value{flag}.vol(1:d1,kk,1:d2) = reshape(oo.img(:,i,:),[d1 1 d2]) ; end
-                % create an empty slice and start values for lengths
-                cc_value{flag}.intra(1:d1,1,1:d2) = reshape(oo.img(:,i,:),[d1 1 d2])*0 ;                    
-                cc_value{flag}.length_on=cc_value{flag}.length_on+10*ydim/10;
-                cc_value{flag}.total_length = cc_value{flag}.length_on;
-                cc_value{flag}.save_length = 0;       
-                cc_value{flag}.int_distance_x10 = 0;
-                cc_value{flag}.avgCSA = 0;  
+                for kk=1:10, 
+                    cc_value{active_slice_counter}.vol(1:x_dim,kk,1:z_dim) = reshape(oo.img(:,y,:),[x_dim 1 z_dim]) ; 
+                end
 
-                if flag > 1
+                % create an empty slice and start values for lengths
+                cc_value{active_slice_counter}.intra(1:x_dim,1,1:z_dim) = reshape(oo.img(:,y,:),[x_dim 1 z_dim])*0 ;                    
+                cc_value{active_slice_counter}.length_on=cc_value{active_slice_counter}.length_on+10*y_resolution/10;
+                cc_value{active_slice_counter}.total_length = cc_value{active_slice_counter}.length_on;
+                cc_value{active_slice_counter}.save_length = 0;       
+                cc_value{active_slice_counter}.int_distance_x10 = 0;
+                cc_value{active_slice_counter}.avgCSA = 0;  
+
+                if active_slice_counter > 1
                     % calculate the distance between original centroids
                     % between this and neigbouring slice
-                    zz=zdim_p1*(cc_value{flag}.point(:,1) - cc_value{flag-1}.point(:,1));
-                    xx=xdim_p2*(cc_value{flag}.point(:,2) - cc_value{flag-1}.point(:,2));
-                    yy=ydim*2;                             % why times 2 ?
-                    cc_value{flag}.distance = sqrt(xx*xx+yy*yy+zz*zz);
+                    zz=z_resolution*(cc_value{active_slice_counter}.point(:,1) - cc_value{active_slice_counter-1}.point(:,1));
+                    xx=x_resolution*(cc_value{active_slice_counter}.point(:,2) - cc_value{active_slice_counter-1}.point(:,2));
+                    yy=y_resolution*2;                             % why times 2 ?
+                    cc_value{active_slice_counter}.distance = sqrt(xx*xx+yy*yy+zz*zz);
 
                     % multiply by 10 and round to integer
-                    ddd=round((cc_value{flag}.distance - 2*ydim)/ydim*10);   % why times 2 ?
+                    ddd=round((cc_value{active_slice_counter}.distance - 2*y_resolution)/y_resolution*10);   % why times 2 ?
                     % if 0, centroids were already aligned, and no
                     % correction is needed, 
                     %if negative something is strange - ignore it.
@@ -218,43 +226,44 @@ for sbj = sss{1}'
                         % for the second half, use the current slice
                         for kk=1:ddd
                             if kk < fix(ddd/2),
-                                    cc_value{flag}.intra(1:end,kk,1:end) = cc_value{flag-1}.vol(1:end,1,1:end);
+                                    cc_value{active_slice_counter}.intra(1:end,kk,1:end) = cc_value{active_slice_counter-1}.vol(1:end,1,1:end);
                             else
-                                    cc_value{flag}.intra(1:end,kk,1:end) = cc_value{flag}.vol(1:end,1,1:end); 
+                                    cc_value{active_slice_counter}.intra(1:end,kk,1:end) = cc_value{active_slice_counter}.vol(1:end,1,1:end); 
                             end
                         end
                     end
                     % update length of ON
-                    cc_value{flag}.length_on=cc_value{flag}.length_on+ddd/10*ydim; 
+                    cc_value{active_slice_counter}.length_on=cc_value{active_slice_counter}.length_on+ddd/10*y_resolution; 
 
                     % and total length.
-                    cc_value{flag}.total_length = cc_value{flag-1}.total_length + cc_value{flag}.length_on ;
-                    cc_value{flag}.int_distance_x10 = ddd;
+                    cc_value{active_slice_counter}.total_length = cc_value{active_slice_counter-1}.total_length + cc_value{active_slice_counter}.length_on ;
+                    cc_value{active_slice_counter}.int_distance_x10 = ddd;
 
-                    if not( cc_value{flag}.mm == cc_value{flag - 1}.mm), 
-                        cc_value{flag-1}.save_length = cc_value{flag-1}.total_length;
-                        cc_value{flag-1}.avgCSA = sumCSA / countCSA;
+                    if not( cc_value{active_slice_counter}.mm == cc_value{active_slice_counter - 1}.mm), 
+                        cc_value{active_slice_counter-1}.save_length = cc_value{active_slice_counter-1}.total_length;
+                        cc_value{active_slice_counter-1}.avgCSA = sumCSA / countCSA;
                         countCSA = 1;
-                        sumCSA = cc_value{flag}.area;
+                        sumCSA = cc_value{active_slice_counter}.area;
                     else 
-                        sumCSA = sumCSA + cc_value{flag}.area;
+                        sumCSA = sumCSA + cc_value{active_slice_counter}.area;
                         countCSA = countCSA + 1;
                     end
 
-                    table(flag-1,:)= [ cc_value{flag-1}.current_slice_yz cc_value{flag-1}.original_slice_yz cc_value{flag-1}.point cc_value{flag-1}.circshift cc_value{flag-1}.distance  cc_value{flag-1}.int_distance_x10  cc_value{flag-1}.length_on  cc_value{flag-1}.total_length cc_value{flag-1}.mm cc_value{flag-1}.save_length cc_value{flag-1}.area cc_value{flag-1}.eccent cc_value{flag-1}.majaxis cc_value{flag-1}.minaxis cc_value{flag-1}.avgCSA];
+                    table(active_slice_counter-1,:)= [ cc_value{active_slice_counter-1}.current_slice_yz cc_value{active_slice_counter-1}.original_slice_yz cc_value{active_slice_counter-1}.point cc_value{active_slice_counter-1}.circshift cc_value{active_slice_counter-1}.distance  cc_value{active_slice_counter-1}.int_distance_x10  cc_value{active_slice_counter-1}.length_on  cc_value{active_slice_counter-1}.total_length cc_value{active_slice_counter-1}.mm cc_value{active_slice_counter-1}.save_length cc_value{active_slice_counter-1}.area cc_value{active_slice_counter-1}.eccent cc_value{active_slice_counter-1}.majaxis cc_value{active_slice_counter-1}.minaxis cc_value{active_slice_counter-1}.avgCSA];
 
-                elseif flag == 1
+                elseif active_slice_counter == 1
                    countCSA = 1;
-                   sumCSA = cc_value{flag}.area;
+                   sumCSA = cc_value{active_slice_counter}.area;
                 end
             end
         end
-        if flag == 0
+        
+        if active_slice_counter == 0
             disp('no ON elements found  -  quitting');
         else
-            cc_value{flag}.save_length = cc_value{flag}.total_length;
-            cc_value{flag}.avgCSA = sumCSA / countCSA;        
-            table(flag,:)= [ cc_value{flag}.current_slice_yz cc_value{flag}.original_slice_yz cc_value{flag}.point cc_value{flag}.circshift cc_value{flag}.distance  cc_value{flag}.int_distance_x10  cc_value{flag}.length_on  cc_value{flag}.total_length cc_value{flag}.mm cc_value{flag}.save_length cc_value{flag}.area cc_value{flag}.eccent cc_value{flag}.majaxis cc_value{flag}.minaxis cc_value{flag}.avgCSA ];
+            cc_value{active_slice_counter}.save_length = cc_value{active_slice_counter}.total_length;
+            cc_value{active_slice_counter}.avgCSA = sumCSA / countCSA;        
+            table(active_slice_counter,:)= [ cc_value{active_slice_counter}.current_slice_yz cc_value{active_slice_counter}.original_slice_yz cc_value{active_slice_counter}.point cc_value{active_slice_counter}.circshift cc_value{active_slice_counter}.distance  cc_value{active_slice_counter}.int_distance_x10  cc_value{active_slice_counter}.length_on  cc_value{active_slice_counter}.total_length cc_value{active_slice_counter}.mm cc_value{active_slice_counter}.save_length cc_value{active_slice_counter}.area cc_value{active_slice_counter}.eccent cc_value{active_slice_counter}.majaxis cc_value{active_slice_counter}.minaxis cc_value{active_slice_counter}.avgCSA ];
 
             length=table(:,12);
             length(length==0)=[];
@@ -264,13 +273,13 @@ for sbj = sss{1}'
             mNms(careas==0)=[];
             careas(careas==0)=[];
             
-            subsidInd=(isbj-1)*2+ss;
+            subsidInd=(isbj-1)*2+side;
 
-            loopRef(subsidInd,:)=[sbj{1}, {'on'}, {side{ss}}];
+            loopRef(subsidInd,:)=[sbj{1}, {'on'}, {sides{side}}];
             for typ=1:16
                 noopRef(typ,:)=[loopRef(subsidInd,:) tablabels(1,typ)];
             end
-            tablelength(subsidInd, 1:16)=[ cc_value{flag}.total_length  length(1) length(2)-length(1) length(3)-length(2) length(4)-length(3) cc_value{flag}.total_length-length(4) careas(1) careas(2) careas(3) careas(4) careas(5) mNms(1) mNms(2) mNms(3) mNms(4) mNms(5)];   
+            tablelength(subsidInd, 1:16)=[ cc_value{active_slice_counter}.total_length  length(1) length(2)-length(1) length(3)-length(2) length(4)-length(3) cc_value{active_slice_counter}.total_length-length(4) careas(1) careas(2) careas(3) careas(4) careas(5) mNms(1) mNms(2) mNms(3) mNms(4) mNms(5)];   
 
     %        get the names for the various subelements and insert them in a
     %        loopRef type structre for naming.
@@ -280,26 +289,26 @@ for sbj = sss{1}'
             xlwrite(DataFile, table', 'Sheet 1', xlRange);
 
             bbb=cc_value{1}.vol ; % start with first slice
-            ll=10; % minislice counter
+            binarized_slice=10; % minislice counter
 
             n_slice=size(cc_value,2); % count the nonzero original slices
 
             % calculate the volumes for the remaining slices
             for ii=2:n_slice % loop over the nonzero slices
                 n_dist=size(cc_value{ii}.intra,2); % get the length in terms of minislices needed for this slice to become
-                new_interval=ll+1:ll+n_dist; % insert the the extra slices as needed
+                new_interval=binarized_slice+1:binarized_slice+n_dist; % insert the the extra slices as needed
                 bbb(1:end,new_interval,1:end)=cc_value{ii}.intra; 
-                ll=ll+n_dist; % advance the minislice counter
-                interval=ll+1:ll+10; % make a range for the 10 minislices for this slice
+                binarized_slice=binarized_slice+n_dist; % advance the minislice counter
+                interval=binarized_slice+1:binarized_slice+10; % make a range for the 10 minislices for this slice
                 bbb(1:end,interval,1:end)=cc_value{ii}.vol; % insert the 10 minislices for this slice.
-                ll=ll+10;      % advance the minislice counter
+                binarized_slice=binarized_slice+10;      % advance the minislice counter
             end
 
-            original_linearized_slices=ll
+            original_linearized_slices=binarized_slice
 
-            if ll < maxNslices
-                for ii=(ll+1):maxNslices
-                    bbb(1:end,ii,1:end)=cc_value{flag}.vol(1:end,1,1:end)*0; % zerofill the rest of the maxNslices
+            if binarized_slice < maxNslices
+                for ii=(binarized_slice+1):maxNslices
+                    bbb(1:end,ii,1:end)=cc_value{active_slice_counter}.vol(1:end,1,1:end)*0; % zerofill the rest of the maxNslices
                 end
             else
                 disp(strcat('Houston, we have a problems! More than', num2str(maxNslices) ,' slices!!!'))
@@ -309,15 +318,15 @@ for sbj = sss{1}'
             %fill hole - if neighbouring slices not zero, copy in slice after
             hole_list=[];
             ct=0;
-            for ll=2:(maxNslices-2)
-                if max(max(bbb(1:end,ll+1,1:end))) == 0 && max(max(bbb(1:end,ll,1:end))) > 0 && max(max(bbb(1:end,ll+2,1:end))) > 0
+            for binarized_slice=2:(maxNslices-2)
+                if max(max(bbb(1:end,binarized_slice+1,1:end))) == 0 && max(max(bbb(1:end,binarized_slice,1:end))) > 0 && max(max(bbb(1:end,binarized_slice+2,1:end))) > 0
                     ct=ct+1;
-                    hole_list(ct)=ll;
-                    bbb(1:end,ll+1,1:end) = bbb(1:end,ll+2,1:end);
+                    hole_list(ct)=binarized_slice;
+                    bbb(1:end,binarized_slice+1,1:end) = bbb(1:end,binarized_slice+2,1:end);
                 end
             end
 
-    %adapted to label each line of values rather than sheet names
+            % adapted to label each line of values rather than sheet names
             xlRange=strcat('A',num2str(subsidInd));
             xlwrite(HoleFile,loopRef(subsidInd,:),'Sheet 1', xlRange);
             if ~isempty(hole_list)
@@ -332,10 +341,10 @@ for sbj = sss{1}'
             dd.hdr.dime.dim(3)=size(bbb,2);
             dd.img=bbb;
 
-            save_nifti(dd,strcat(outImPath,'/',sbj{1},'/on',side{ss},Lin4image)); 
-            save(strcat(outImPath,'/',sbj{1},'/on_',side{ss},Lin4mat),'cc_value');
+            save_nifti(dd,strcat(outImPath,'/',sbj{1},'/on',sides{side},Lin4image)); 
+            save(strcat(outImPath,'/',sbj{1},'/on_',sides{side},Lin4mat),'cc_value');
 
-            lengthfactor=maxNslices/round(cc_value{flag}.total_length/dd.hdr.dime.pixdim(3)); % convert between MaxNslices and the current number of slices (after straightening)
+            lengthfactor=maxNslices/round(cc_value{active_slice_counter}.total_length/dd.hdr.dime.pixdim(3)); % convert between MaxNslices and the current number of slices (after straightening)
             zz=cc_value{1}.vol(1:end,1,1:end)*0; % start with an empty slice
 
             check_range=zeros(maxNslices,1);
@@ -355,10 +364,10 @@ for sbj = sss{1}'
 
             xx=dd; % use dd for the header information              
             xx.img=zz;
-            save_nifti(xx,strcat(outImPath,'/',sbj{1},'/on',side{ss},Norm4image));
-            save(strcat(outImPath,'/',sbj{1},'/on_',side{ss},Norm4mat),'cc_value');
+            save_nifti(xx,strcat(outImPath,'/',sbj{1},'/on',sides{side},Norm4image));
+            save(strcat(outImPath,'/',sbj{1},'/on_',sides{side},Norm4mat),'cc_value');
 
-    % adapted to label each line of values         
+            % adapted to label each line of values         
             xlRange=strcat('A',num2str(subsidInd+1));
             xlwrite(RangeFile,loopRef(subsidInd,:),'Sheet 1', xlRange);
             xlRange=strcat('D',num2str(subsidInd+1));
@@ -390,12 +399,12 @@ resamp={'linearize','normalized' };
 resamplabels=[ {'curr_sli_yz'}, {'orig_sli_yz'}, {'mMax'}, {'dist'}, {'tot_len'}, {'save_len'}, {'CSArea'}, {'Eccent'}, {'MajAxis'}, {'MinAxis'}, {'AvgCSA'} ];
 resampstretxt=[ {'Subject'} {'Image'} {'ONsection'} {'side'} {'TotLength'} {'OT_length'} {'OC_length'} {'iCran_length'} {'iCan_length'} {'iOrb_length'} {'OT_CSA'} {'OC_CSA'} {'iCran_CSA'} {'iCan_CSA'} {'iOrb_CSA'} {'SegmCode 1'} {'SegmCode 2'} {'SegmCode 3'} {'SegmCode 4'} {'SegmCode 5'}];   
 
-for sbj = sss{1}'
+for sbj = subject_list{1}'
     isbj=isbj+1;
-    for ss=1:2 ; % :2
+    for side=1:2 ; % :2
         for rr=1:2;
             clear cc_value
-            bname=strcat(sbj{1},'/on',side{ss},'_',resamp{rr},'_4bc_iso06')
+            bname=strcat(sbj{1},'/on',sides{side},'_',resamp{rr},'_4bc_iso06')
             fname=strcat(inPath,'/',bname);
             
             aa=load_nifti(fname);
@@ -403,33 +412,33 @@ for sbj = sss{1}'
         % i,j,k == x, y, z
         
         % x,z il piano di sezione ...
-            d1=size(aa.img,1);
-            d2=size(aa.img,3);
+            x_dim=size(aa.img,1);
+            z_dim=size(aa.img,3);
             dy=size(aa.img,2);
         
-            xdim_p2=aa.hdr.dime.pixdim(2);
-            zdim_p1=aa.hdr.dime.pixdim(4);
-            ydim=aa.hdr.dime.pixdim(3);
+            x_resolution=aa.hdr.dime.pixdim(2);
+            z_resolution=aa.hdr.dime.pixdim(4);
+            y_resolution=aa.hdr.dime.pixdim(3);
                 
             rtable = [];
             incount=0;
             countCSA = 0;
             sumCSA = 0;
-            for i=1:dy  
-              bb=squeeze(aa.img(:,i,:)); 
-              mm=max(max(bb)); 
-              if mm>0 
+            for y=1:dy  
+              selected_y_slice=squeeze(aa.img(:,y,:)); 
+              max_voxel_value=max(max(selected_y_slice)); 
+              if max_voxel_value>0 
                 incount = incount + 1;
-                ll=bb>0;               
-                vv = regionprops(ll,'Area','MajorAxisLength','MinorAxisLength','Eccentricity');   
+                binarized_slice=selected_y_slice>0;               
+                slice_properties = regionprops(binarized_slice,'Area','MajorAxisLength','MinorAxisLength','Eccentricity');   
                 cc_value{incount}.current_slice_yz=incount;
-                cc_value{incount}.original_slice_yz=i;
-                cc_value{incount}.mm = mm ;   
-                cc_value{incount}.distance = ydim ;
-                cc_value{incount}.majaxis = vv(1).MajorAxisLength*xdim_p2 ;
-                cc_value{incount}.minaxis = vv(1).MinorAxisLength*zdim_p1 ;
-                cc_value{incount}.area = vv(1).Area * xdim_p2 * zdim_p1 ;
-                cc_value{incount}.eccent = vv(1).Eccentricity ;
+                cc_value{incount}.original_slice_yz=y;
+                cc_value{incount}.mm = max_voxel_value ;   
+                cc_value{incount}.distance = y_resolution ;
+                cc_value{incount}.majaxis = slice_properties(1).MajorAxisLength*x_resolution ;
+                cc_value{incount}.minaxis = slice_properties(1).MinorAxisLength*z_resolution ;
+                cc_value{incount}.area = slice_properties(1).Area * x_resolution * z_resolution ;
+                cc_value{incount}.eccent = slice_properties(1).Eccentricity ;
 
                 cc_value{incount}.save_length = 0;
                 cc_value{incount}.avgCSA = 0;
@@ -469,9 +478,9 @@ for sbj = sss{1}'
             mNms(careas==0)=[];
             careas(careas==0)=[];
     
-            subsidInd=(isbj-1)*4 + (rr-1)*2 + ss;
+            subsidInd=(isbj-1)*4 + (rr-1)*2 + side;
 
-            resamploopRef(subsidInd,:)=[sbj{1}, resamp{rr}, {'on'}, {side{ss}}];
+            resamploopRef(subsidInd,:)=[sbj{1}, resamp{rr}, {'on'}, {sides{side}}];
             for typ=1:11
                 resampnoopRef(typ,:)=[resamploopRef(subsidInd,:) resamplabels(1,typ)];
             end
