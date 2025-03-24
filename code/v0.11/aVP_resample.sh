@@ -43,19 +43,19 @@ do
         ii=${imPath}/${sbj}/${anat}${ss}${baseImage}
         nn=$(basename $ii .nii.gz)
         mm=$(dirname  $ii)
-	echo $ii
-	echo $nn
-	echo $mm
+	    echo $ii
+	    echo $nn
+	    echo $mm
         fslmaths ${ii} -mul 1 ${mm}/${nn}2.nii.gz
-	fslorient -setqformcode 1 ${mm}/${nn}2.nii.gz
+	    fslorient -setqformcode 1 ${mm}/${nn}2.nii.gz
         fslorient -setsformcode 1 ${mm}/${nn}2.nii.gz
     
        fslhd -x ${mm}/${nn}2.nii.gz | sed "s/dy = '[^\']*'/dy = '0.0245'/g" > ${mm}/hd.xml
        
     
         fslcreatehd ${mm}/hd.xml ${mm}/${nn}2.nii.gz
-	rm ${mm}/hd.xml 
-	fslorient -copyqform2sform ${mm}/${nn}2.nii.gz
+	    rm ${mm}/hd.xml 
+	    fslorient -copyqform2sform ${mm}/${nn}2.nii.gz
 #
 #  set the origin to centre of first slice
 #

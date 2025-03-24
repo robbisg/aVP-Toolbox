@@ -116,12 +116,16 @@ for sbj = subject_list{1}'
 
     isbj=isbj+1;
 
+    if isbj > 2
+        continue
+    end
+
     for side=1:2 ;     
 
         clear cc_value
         fname=strcat(inPath,'/',sbj{1},'/on_',sides{side});
 
-        disp(strcat('INFO: Analyzing ', sbj{1},' - on_',sides{side}));
+        disp(strcat('INFO: Analyzing', sbj{1},' - on_',sides{side}));
 
         if not(exist(strcat(fname,'.nii.gz')))
             disp(strcat('could not find: ',fname,'.nii.gz'))
@@ -144,7 +148,7 @@ for sbj = subject_list{1}'
         y_resolution=aa.hdr.dime.pixdim(3); 
         
         % calcualte the center of the slice in order to be able to shift the centroid of the ROI there. 
-        image_center=[round(z_dim/2) round(x_dim/2)];
+        image_center=[z_dim/2 x_dim/2];
         active_slice_counter=0;
         segment_type = 0;
         
@@ -194,8 +198,8 @@ for sbj = subject_list{1}'
                     
                 % shift the centroid of the region to the center of the image
                 
-                x_center_shift = image_center(2) - round(orig_centroids(2));
-                z_center_shift = image_center(1) - round(orig_centroids(1));
+                x_center_shift = image_center(2)-round(orig_centroids(2));
+                z_center_shift = image_center(1)-round(orig_centroids(1));
 
                 cc = circshift(selected_y_slice, [ x_center_shift z_center_shift ]);
                 cc_value{active_slice_counter}.circshift = [ x_center_shift z_center_shift ];
@@ -415,7 +419,7 @@ for sbj = subject_list{1}'
 
             original_linearized_slices = interpolation_counter;
 
-            disp(strcat('INFO: Image creation...'));
+            disp(strcat('INFO: Image filling...'));
             if interpolation_counter < maxNslices
                 for ii=(interpolation_counter+1):maxNslices
                     bbb(1:end,ii,1:end) = cc_value{active_slice_counter}.vol(1:end, 1, 1:end) * 0; % zerofill the rest of the maxNslices
@@ -428,9 +432,6 @@ for sbj = subject_list{1}'
             %fill hole - if neighbouring slices not zero, copy in slice after
             hole_list = [];
             hole_counter = 0; 
-
-            disp(strcat('INFO: Hole filling...'));
-
             for slice=2:(maxNslices-2)
                 
                 if max(max(bbb(1:end,slice+1,1:end))) == 0 && ...
@@ -457,8 +458,6 @@ for sbj = subject_list{1}'
             dd.hdr.dime.dim(3)=size(bbb,2);
             dd.img=bbb;
 
-            disp(strcat('INFO: Disk writing...'));
-
             save_nifti(dd,strcat(outImPath,'/',sbj{1},'/on',sides{side},Lin4image)); 
             save(strcat(outImPath,'/',sbj{1},'/on_',sides{side},Lin4mat),'cc_value');
 
@@ -467,10 +466,8 @@ for sbj = subject_list{1}'
 
             check_range=zeros(maxNslices,1);
 
-            disp(strcat('INFO: Normalization...'));
-
             for ii=1:maxNslices           
-                jj=round(ii / maxNslices * original_linearized_slices); %figure out slice in aligned that needs to go into the ii-th slice of the normalized
+                jj=round(ii/maxNslices*original_linearized_slices); %figure out slice in aligned that needs to go into the ii-th slice of the normalized
                 if jj<1, jj=1; end 
                 check_range(ii)=jj; 
                 zz(1:end,ii,1:end)=bbb(1:end,jj,1:end); % the ii-th fslice in a volume of maxNslices is the jj-th slice of the  original

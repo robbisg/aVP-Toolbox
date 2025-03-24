@@ -48,6 +48,8 @@ do
 		do
 			mm=${ii}/${nn}_${ss}
 			vv=$(fslstats  ${mm} -V | awk '{ print $1 ";" $2}')
+            echo $mm
+            #fslinfo ${mm}
 			echo "${sbj};${nn};${ss};${vv}"
                         echo "${sbj};${nn};${ss};${vv}" >> "${outPath}/${outFile}"
 
