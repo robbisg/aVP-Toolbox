@@ -79,6 +79,14 @@ def memory_report(func):
         return result
     return wrapper
 
+def log_variable_memory_usage(variables, label):
+    """Log memory usage of specified variables."""
+    print(f"\n[{datetime.now().strftime('%H:%M:%S')}] MEMORY PROFILE ({label}):")
+    for var_name, var_value in variables.items():
+        size_mb = sys.getsizeof(var_value) / (1024 * 1024)  # Convert to MB
+        print(f"  {var_name}: {size_mb:.2f} MB")
+    print()
+
 # Get current working directory
 curwd = os.getcwd()
 
@@ -86,7 +94,8 @@ curwd = os.getcwd()
 #with open(os.path.join(curwd, 'ONcontrol.txt'), 'r') as fileID:
 #    StudyPath = fileID.readline().strip()
     
-StudyPath = "/home/robbis/git/aVP-toolbox/data/test/"
+StudyPath = "/home/robbis/git/aVP-Toolbox/data/test/"
+
 
 inPath = os.path.join(StudyPath, 'data', 'proc')
 outImPath = os.path.join(StudyPath, 'data', 'proc')
@@ -168,7 +177,7 @@ for subject in subject_list:
         
         # Load the nifti file
         nifti_img = nib.load(f"{fname}.nii.gz")
-        nifti_data = nifti_img.get_fdata()
+        nifti_data = nifti_img.get_fdata(dtype=np.float32)
         log_memory_usage(f"After loading {subject} - on_{side}")
         
         # Check if the image is empty
@@ -186,7 +195,7 @@ for subject in subject_list:
         z_resolution = nifti_img.header.get_zooms()[2]
         
         # Calculate the center of the slice to be able to shift the centroid of the ROI there
-        image_center = [round(z_dim/2), round(x_dim/2)]
+        image_center = [round(x_dim/2), round(z_dim/2)]
         active_slice = -1
         segment_type = 0
         
@@ -202,7 +211,6 @@ for subject in subject_list:
             # Take xz "slice", eliminating other ys
             selected_y_slice = nifti_data[:, y, :]  
             max_voxel_value = np.max(selected_y_slice)
-            
             # Empty slice, go to the next
             if max_voxel_value == 0:
                 continue
@@ -247,30 +255,31 @@ for subject in subject_list:
             slice_data['eccent'] =  props[0].eccentricity
             
             # Shift the centroid of the region to the center of the image
-            x_center_shift = int(image_center[1] - round(orig_centroids[1]))
-            z_center_shift = int(image_center[0] - round(orig_centroids[0]))
-            
-            cc = np.roll(np.roll(selected_y_slice, 
-                                 x_center_shift, axis=0), 
-                         z_center_shift, axis=1)
+            x_center_shift = int(image_center[0] - round(orig_centroids[0]))
+            z_center_shift = int(image_center[1] - round(orig_centroids[1]))
             
             # TODO: Use two dictionary entries
             #slice_data['circshift'] = [x_center_shift, z_center_shift]
             slice_data['circshift_x'] = x_center_shift
             slice_data['circshift_z'] = z_center_shift
             
+            cc = np.roll(np.roll(selected_y_slice, 
+                                 x_center_shift, axis=0), 
+                         z_center_shift, axis=1)
+            
+            log_memory_usage(f"After shifting slice {y}")
             # Save the mask or segments
             if ismask == 0:
                 nifti_data[:, y, :] = cc
             else:
                 nifti_data[:, y, :] = np.sign(cc)
-            
+            log_memory_usage(f"After overwriting slice {y}")
             # Account for obliqueness of the optic nerve
             length_on = 0
             
             # TODO: Separate points in two fields and use different naming
-            slice_data['orig_centroid_x'] = orig_centroids[1]
-            slice_data['orig_centroid_z'] = orig_centroids[0]
+            slice_data['orig_centroid_x'] = orig_centroids[0]
+            slice_data['orig_centroid_z'] = orig_centroids[1]
             slice_data['distance'] = 0
             slice_data['length_on'] = length_on
             slice_data['length_on'] = y_resolution
@@ -281,26 +290,28 @@ for subject in subject_list:
             
             # TODO: Do we need to store it in the slice_data?
             
-            
+            log_memory_usage(f"Before creating volume for slice {y}")
             
             # Replicate the slice 10 times
             # TODO: Change variable name `vol`
-            vol = np.zeros((x_dim, resolution_increase, z_dim))
+            vol = np.zeros((x_dim, resolution_increase, z_dim), dtype=np.float32)
             for kk in range(resolution_increase):
                 vol[:, kk, :] = nifti_data[:, y, :]
-            slice_data['vol'] = vol
+            #slice_data['vol'] = vol
 
             
+            
             # Create an empty slice and start values for lengths
-            slice_data['intra'] = np.zeros((x_dim, 1, z_dim))
-            slice_data['slice'] = nifti_data[:, y, :]
+            #slice_data['intra'] = np.zeros((x_dim, 1, z_dim))
+            #slice_data['slice'] = nifti_data[:, y, :]
             
             slice_vols = dict()
             slice_vols['vol'] = vol
-            slice_vols['intra'] = np.zeros((x_dim, 1, z_dim))
-            slice_vols['slice'] = nifti_data[:, y, :]
+            slice_vols['intra'] = np.zeros((x_dim, 1, z_dim), dtype=np.float32)
+            #slice_vols['slice'] = nifti_data[:, y, :]
             
-                
+            log_memory_usage(f"After volume for slice {y}")
+
             if active_slice == 0:
                 countCSA = 1
                 sumCSA = slice_data['area']
@@ -334,7 +345,9 @@ for subject in subject_list:
                 
                 # If positive make insertions
                 if distance_gap > 0:
-                    slice_vols['intra'] = np.zeros((x_dim, distance_gap, z_dim))
+                    log_memory_usage(f"Before creating intra volume for slice {y}")
+
+                    slice_vols['intra'] = np.zeros((x_dim, distance_gap, z_dim), dtype=np.float32)
                     
                     # For first half of interpolates use prior slice
                     # For the second half, use the current slice
@@ -343,7 +356,9 @@ for subject in subject_list:
                             slice_vols['intra'][:, kk, :] = interpolation_data[previous_slice]['vol'][:, 0, :]
                         else:
                             slice_vols['intra'][:, kk, :] = slice_vols['vol'][:, 0, :]
-                
+
+                    log_memory_usage(f"After creating intra volume for slice {y}")
+                    
                 # Update length of ON
                 slice_data['length_on'] += distance_gap / resolution_increase * y_resolution
                 
@@ -364,6 +379,7 @@ for subject in subject_list:
                 
                 # Add data to table
                 # TODO: Check previous slice
+                log_memory_usage(f"Before creating table row volume for slice {y}")
                 table_row = [
                     slice_data['current_slice_yz'],
                     slice_data['original_slice_yz'],
@@ -384,11 +400,16 @@ for subject in subject_list:
                     slice_data['avgCSA']
                 ]
                 table.append(table_row)
-            
-            
+                log_memory_usage(f"After adding row in table for slice {y}")
+                
+                log_variable_memory_usage({'intra': slice_vols['intra']}, f"Volume for slice {y}")
+                log_variable_memory_usage({'vol': slice_vols['vol']}, f"Data for slice {y}")
+
+            log_memory_usage(f"Before adding slice data to cc_value: slice {y}")
             cc_value.append(slice_data)
             interpolation_data.append(slice_vols)
-        
+            log_memory_usage(f"After adding slice data to cc_value: slice {y}")
+            
         # Save processed info
         cc_value[active_slice]['save_length'] = cc_value[active_slice-1]['total_length']
         cc_value[active_slice]['avgCSA'] = sumCSA / countCSA
@@ -504,7 +525,7 @@ for subject in subject_list:
         # Create or pad the full array
         if interpolation_counter < maxNslices:
             # If we need to pad, create a new larger array
-            full_bbb = np.zeros((x_dim, maxNslices, z_dim))
+            full_bbb = np.zeros((x_dim, maxNslices, z_dim), dtype=np.float32)
             full_bbb[:, :interpolation_counter, :] = bbb[:, :interpolation_counter, :]
             bbb = full_bbb
         else:
