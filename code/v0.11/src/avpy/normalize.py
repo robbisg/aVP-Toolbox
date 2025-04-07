@@ -282,25 +282,26 @@ for subject in subject_list:
             # TODO: Do we need to store it in the slice_data?
             
             
-            
+            log_memory_usage(f"Before creating vol variable for {subject} - on_{side}")
             # Replicate the slice 10 times
             # TODO: Change variable name `vol`
             vol = np.zeros((x_dim, resolution_increase, z_dim))
             for kk in range(resolution_increase):
                 vol[:, kk, :] = nifti_data[:, y, :]
-            slice_data['vol'] = vol
+            #slice_data['vol'] = vol
 
             
             # Create an empty slice and start values for lengths
-            slice_data['intra'] = np.zeros((x_dim, 1, z_dim))
-            slice_data['slice'] = nifti_data[:, y, :]
+            #slice_data['intra'] = np.zeros((x_dim, 1, z_dim))
+            #slice_data['slice'] = nifti_data[:, y, :]
             
             slice_vols = dict()
             slice_vols['vol'] = vol
             slice_vols['intra'] = np.zeros((x_dim, 1, z_dim))
             slice_vols['slice'] = nifti_data[:, y, :]
             
-                
+            log_memory_usage("After storing interpolation variables.")
+            
             if active_slice == 0:
                 countCSA = 1
                 sumCSA = slice_data['area']
@@ -333,6 +334,7 @@ for subject in subject_list:
                     distance_gap = 0
                 
                 # If positive make insertions
+                log_memory_usage(f"Before inserting slices at {y}")
                 if distance_gap > 0:
                     slice_vols['intra'] = np.zeros((x_dim, distance_gap, z_dim))
                     
@@ -344,6 +346,7 @@ for subject in subject_list:
                         else:
                             slice_vols['intra'][:, kk, :] = slice_vols['vol'][:, 0, :]
                 
+                log_memory_usage(f"After inserting slices {y}")
                 # Update length of ON
                 slice_data['length_on'] += distance_gap / resolution_increase * y_resolution
                 
