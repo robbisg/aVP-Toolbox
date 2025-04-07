@@ -43,6 +43,41 @@ import pickle
 import subprocess
 from skimage import measure
 import sys
+import psutil
+import time
+import gc
+from datetime import datetime
+
+# Memory profiling functions
+def get_memory_usage():
+    """Return the current memory usage of this process in MB."""
+    process = psutil.Process(os.getpid())
+    mem_info = process.memory_info()
+    return mem_info.rss / (1024 * 1024)  # Convert to MB
+
+def log_memory_usage(label):
+    """Log the current memory usage with a label."""
+    mem_usage = get_memory_usage()
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    print(f"[{timestamp}] MEMORY ({label}): {mem_usage:.2f} MB")
+
+def memory_report(func):
+    """Decorator to report memory usage before and after function execution."""
+    def wrapper(*args, **kwargs):
+        gc.collect()  # Force garbage collection before measurement
+        label_before = f"Before {func.__name__}"
+        log_memory_usage(label_before)
+        
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        elapsed = time.time() - start_time
+        
+        gc.collect()  # Force garbage collection before measurement
+        label_after = f"After {func.__name__} (took {elapsed:.2f}s)"
+        log_memory_usage(label_after)
+        
+        return result
+    return wrapper
 
 # Get current working directory
 curwd = os.getcwd()
@@ -111,6 +146,9 @@ tablelength_data = []
 
 dataframe_slice = []
 
+# Log initial memory state
+log_memory_usage("Script start")
+
 # Main processing loop
 # TODO: Consider to use multiprocessing for parallel processing
 # TODO: Consider to use a progress bar for better user experience
@@ -122,6 +160,7 @@ for subject in subject_list:
         fname = os.path.join(inPath, subject, f'on_{side}')
         
         print(f"INFO: Analyzing {subject} - on_{side}")
+        log_memory_usage(f"Before processing {subject} - on_{side}")
         
         if not os.path.exists(f"{fname}.nii.gz"):
             print(f"could not find: {fname}.nii.gz")
@@ -130,6 +169,7 @@ for subject in subject_list:
         # Load the nifti file
         nifti_img = nib.load(f"{fname}.nii.gz")
         nifti_data = nifti_img.get_fdata()
+        log_memory_usage(f"After loading {subject} - on_{side}")
         
         # Check if the image is empty
         if np.sum(nifti_data) == 0:
