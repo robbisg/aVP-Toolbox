@@ -1,1 +1,1 @@
-/media/robbis/DATA/fmri/optical_nerve/data/CISS_Manual_Segmentations_HC+PTS/PTS
+/media/robbis/DATA/fmri/optical_nerve/test/
