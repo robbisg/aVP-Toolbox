@@ -14,7 +14,7 @@ subject_list = ['001', '002']
 dg = Node(DataGrabber(
             infields=['subject_id'], 
             outfields=['otr', 'otl', 'onc', 'onr', 'onl']),
-            name='datagrabber')
+          name='datagrabber')
 dg.inputs.base_directory = study_path
 dg.inputs.template = '%d/*'
 dg.inputs.field_template = dict(otr='%s/otr.nii.gz',
