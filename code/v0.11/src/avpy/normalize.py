@@ -59,7 +59,7 @@ def log_memory_usage(label):
     """Log the current memory usage with a label."""
     mem_usage = get_memory_usage()
     timestamp = datetime.now().strftime("%H:%M:%S")
-    print(f"[{timestamp}] MEMORY ({label}): {mem_usage:.2f} MB")
+    #print(f"[{timestamp}] MEMORY ({label}): {mem_usage:.2f} MB")
 
 def memory_report(func):
     """Decorator to report memory usage before and after function execution."""
@@ -81,11 +81,11 @@ def memory_report(func):
 
 def log_variable_memory_usage(variables, label):
     """Log memory usage of specified variables."""
-    print(f"\n[{datetime.now().strftime('%H:%M:%S')}] MEMORY PROFILE ({label}):")
+    #print(f"\n[{datetime.now().strftime('%H:%M:%S')}] MEMORY PROFILE ({label}):")
     for var_name, var_value in variables.items():
         size_mb = sys.getsizeof(var_value) / (1024 * 1024)  # Convert to MB
         print(f"  {var_name}: {size_mb:.2f} MB")
-    print()
+    #print()
 
 # Get current working directory
 curwd = os.getcwd()
@@ -140,6 +140,7 @@ isbj = 0
 tablelength = []
 
 maxNslices = 2500
+
 # 0: use combination of aVP segments. 1: use individual aVP segments (not tested)
 ismask = 0
 
@@ -148,6 +149,7 @@ with open(os.path.join(StudyPath, 'data', 'sbj.list'), 'r') as fileID:
     subject_list = [line.strip() for line in fileID]
 
 resolution_increase = 10
+max_slices = 120 * resolution_increase
 
 loopRef = []
 tablelength_data = []
@@ -161,6 +163,7 @@ log_memory_usage("Script start")
 # TODO: Consider to use multiprocessing for parallel processing
 # TODO: Consider to use a progress bar for better user experience
 # TODO: Consider to create a subject function to encapsulate the logic
+
 for subject in subject_list:
     isbj += 1
         
@@ -185,7 +188,7 @@ for subject in subject_list:
             continue
         
         # Take into account that the image considers the origin to be lower left, but numpy is upper left
-        nifti_data = np.flip(nifti_data, axis=0)
+        #nifti_data = np.flip(nifti_data, axis=0)
         
         # Get dimensions and resolutions
         x_dim, y_dim, z_dim = nifti_data.shape
@@ -194,7 +197,7 @@ for subject in subject_list:
         z_resolution = nifti_img.header.get_zooms()[2]
         
         # Calculate the center of the slice to be able to shift the centroid of the ROI there
-        image_center = [round(x_dim/2), round(z_dim/2)]
+        image_center = np.array([x_dim/2, z_dim/2]) - 0.5
         active_slice = -1
         segment_type = 0
         
@@ -218,8 +221,9 @@ for subject in subject_list:
                 segment_type = 1
                 current_max_value = max_voxel_value
             else:
-                if not current_max_value == max_voxel_value:
+                if current_max_value != max_voxel_value:
                     segment_type += 1
+                    current_max_value = max_voxel_value
             
             active_slice += 1
             
@@ -254,8 +258,8 @@ for subject in subject_list:
             slice_data['eccent'] =  props[0].eccentricity
             
             # Shift the centroid of the region to the center of the image
-            x_center_shift = int(image_center[0] - round(orig_centroids[0]))
-            z_center_shift = int(image_center[1] - round(orig_centroids[1]))
+            x_center_shift = int(np.round(image_center[0] - orig_centroids[0]))
+            z_center_shift = int(np.round(image_center[1] - orig_centroids[1]))
             
             # TODO: Use two dictionary entries
             #slice_data['circshift'] = [x_center_shift, z_center_shift]
@@ -289,15 +293,16 @@ for subject in subject_list:
             
             # TODO: Do we need to store it in the slice_data?
             
+            log_memory_usage(f"Before creating volume for slice {y}")
             
-            log_memory_usage(f"Before creating vol variable for {subject} - on_{side}")
             # Replicate the slice 10 times
             # TODO: Change variable name `vol`
-            vol = np.zeros((x_dim, resolution_increase, z_dim))
+            vol = np.zeros((x_dim, resolution_increase, z_dim), dtype=np.float32)
             for kk in range(resolution_increase):
                 vol[:, kk, :] = nifti_data[:, y, :]
             #slice_data['vol'] = vol
 
+            
             
             # Create an empty slice and start values for lengths
             #slice_data['intra'] = np.zeros((x_dim, 1, z_dim))
@@ -305,11 +310,11 @@ for subject in subject_list:
             
             slice_vols = dict()
             slice_vols['vol'] = vol
-            slice_vols['intra'] = np.zeros((x_dim, 1, z_dim))
-            slice_vols['slice'] = nifti_data[:, y, :]
+            slice_vols['intra'] = np.zeros((x_dim, 1, z_dim), dtype=np.float32)
+            #slice_vols['slice'] = nifti_data[:, y, :]
             
-            log_memory_usage("After storing interpolation variables.")
-            
+            log_memory_usage(f"After volume for slice {y}")
+
             if active_slice == 0:
                 countCSA = 1
                 sumCSA = slice_data['area']
@@ -344,7 +349,9 @@ for subject in subject_list:
                 # If positive make insertions
                 log_memory_usage(f"Before inserting slices at {y}")
                 if distance_gap > 0:
-                    slice_vols['intra'] = np.zeros((x_dim, distance_gap, z_dim))
+                    log_memory_usage(f"Before creating intra volume for slice {y}")
+
+                    slice_vols['intra'] = np.zeros((x_dim, distance_gap, z_dim), dtype=np.float32)
                     
                     # For first half of interpolates use prior slice
                     # For the second half, use the current slice
@@ -353,8 +360,9 @@ for subject in subject_list:
                             slice_vols['intra'][:, kk, :] = interpolation_data[previous_slice]['vol'][:, 0, :]
                         else:
                             slice_vols['intra'][:, kk, :] = slice_vols['vol'][:, 0, :]
-                
-                log_memory_usage(f"After inserting slices {y}")
+
+                    log_memory_usage(f"After creating intra volume for slice {y}")
+                    
                 # Update length of ON
                 slice_data['length_on'] += distance_gap / resolution_increase * y_resolution
                 
@@ -372,128 +380,43 @@ for subject in subject_list:
                 else:
                     sumCSA += slice_data['area']
                     countCSA += 1
-                
-                # Add data to table
-                # TODO: Check previous slice
-                table_row = [
-                    slice_data['current_slice_yz'],
-                    slice_data['original_slice_yz'],
-                    slice_data['orig_centroid_x'],
-                    slice_data['orig_centroid_z'],
-                    slice_data['circshift_x'],
-                    slice_data['circshift_z'],
-                    slice_data['distance'],
-                    slice_data['int_distance_x10'],
-                    slice_data['length_on'],
-                    slice_data['total_length'],
-                    slice_data['max_voxel_value'],
-                    slice_data['save_length'],
-                    slice_data['area'],
-                    slice_data['eccent'],
-                    slice_data['majaxis'],
-                    slice_data['minaxis'],
-                    slice_data['avgCSA']
-                ]
-                table.append(table_row)
-            
-            
+
+            log_memory_usage(f"Before adding slice data to cc_value: slice {y}")
             cc_value.append(slice_data)
             interpolation_data.append(slice_vols)
-        
+            log_memory_usage(f"After adding slice data to cc_value: slice {y}")
+            
         # Save processed info
         cc_value[active_slice]['save_length'] = cc_value[active_slice-1]['total_length']
         cc_value[active_slice]['avgCSA'] = sumCSA / countCSA
         
-        # Add final row to table
-        table_row = [
-            cc_value[active_slice-1]['current_slice_yz'],
-            cc_value[active_slice-1]['original_slice_yz'],
-            cc_value[active_slice-1]['point'][0],
-            cc_value[active_slice-1]['point'][1],
-            cc_value[active_slice-1]['circshift'][0],
-            cc_value[active_slice-1]['circshift'][1],
-            cc_value[active_slice-1]['distance'],
-            cc_value[active_slice-1]['int_distance_x10'],
-            cc_value[active_slice-1]['length_on'],
-            cc_value[active_slice-1]['total_length'],
-            cc_value[active_slice-1]['max_voxel_value'],
-            cc_value[active_slice-1]['save_length'],
-            cc_value[active_slice-1]['area'],
-            cc_value[active_slice-1]['eccent'],
-            cc_value[active_slice-1]['majaxis'],
-            cc_value[active_slice-1]['minaxis'],
-            cc_value[active_slice-1]['avgCSA']
-        ]
-        table.append(table_row)
-        
-        # Extract relevant data for output
-        length_values = [row[11] for row in table]
-        length_values = [l for l in length_values if l != 0]
-        
-        carea_values = [row[16] for row in table]
-        carea_values = [c for c in carea_values if c != 0]
-        
-        mNms_values = [row[10] for row in table]
-        mNms_values = [m for m, c in zip(mNms_values, carea_values) if c != 0]
-        
-        subsidInd = (isbj - 1) * 2 + side_idx
-        
-        loopRef.append([subject, 'on', sides[side_idx]])
-        
-        # Prepare table length data
-        tablelength_row = [
-        #    cc_value[active_slice-1]['total_length'],
-        #    length_values[0],
-        #    length_values[1] - length_values[0],
-        #    length_values[2] - length_values[1],
-        #    length_values[3] - length_values[2],
-        #    cc_value[active_slice-1]['total_length'] - length_values[3],
-        #    carea_values[0],
-        #    carea_values[1],
-        #    carea_values[2],
-        #    carea_values[3],
-        #    carea_values[4],
-        #    mNms_values[0],
-        #    mNms_values[1],
-        #    mNms_values[2],
-        #    mNms_values[3],
-        #    mNms_values[4]
-        ]
-        tablelength_data.append(tablelength_row)
-        
-        # Write data to excel files
-        #for i, row in enumerate(table):
-        #    row_idx = (subsidInd - 1) * len(table) + i + 1
-        #    df = pd.DataFrame([loopRef[subsidInd-1] + [tablabels[j]] for j in range(len(tablabels))])
-        #    with pd.ExcelWriter(DataFile, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
-        #        df.to_excel(writer, sheet_name='Sheet 1', startrow=row_idx-1, startcol=0, header=False, index=False)
-        #        
-        #        # Write table data
-        #        df2 = pd.DataFrame([row]).transpose()
-        #        df2.to_excel(writer, sheet_name='Sheet 1', startrow=row_idx-1, startcol=4, header=False, index=False)
-        
+        sliceframe = pd.DataFrame(cc_value)
+        # Save dataframe or add other subects
+                
         # Build the linearized volume
         print("INFO: Nerve Interpolation...")
         
         # Select the first upsampled slice
-        bbb = cc_value[0]['vol']
+        bbb = interpolation_data[0]['vol']
         interpolation_counter = 10  # Minislice counter
         
-        n_slice = len(cc_value)  # Count the nonzero original slices
+        n_slice = len(interpolation_data)  # Count the nonzero original slices
         
         # Calculate the volumes for the remaining slices
+        distances = np.zeros(n_slice)
         for ii in range(1, n_slice):
             # Get the length in terms of minislices needed for this slice
             # TODO: Do we have distance_gap?
-            n_dist = cc_value[ii]['intra'].shape[1]
+            n_dist = interpolation_data[ii]['intra'].shape[1]
+            distances[ii-1] = n_dist
             
             # Insert the extra slices as needed
             new_interval = range(interpolation_counter+1, 
-                                    interpolation_counter+n_dist+1)
+                                 interpolation_counter+n_dist+1)
             
             for idx, j in enumerate(new_interval):
                 if j < bbb.shape[1]:
-                    bbb[:, j, :] = cc_value[ii]['intra'][:, idx, :]
+                    bbb[:, j, :] = interpolation_data[ii]['intra'][:, idx, :]
             
             # Advance the minislice counter
             interpolation_counter += n_dist
@@ -504,19 +427,47 @@ for subject in subject_list:
             # Insert the 10 minislices for this slice
             for idx, j in enumerate(interval):
                 if j < bbb.shape[1]:
-                    bbb[:, j, :] = cc_value[ii]['vol'][:, idx, :]
+                    bbb[:, j, :] = interpolation_data[ii]['vol'][:, idx, :]
             
             # Advance the minislice counter
             interpolation_counter += 10
         
-        original_linearized_slices = interpolation_counter
+        original_linearized_slices = interpolation_counter        
+        
+        # Interpolate data pythonic
+        distances = sliceframe['int_distance_x10'].values + 10
+        hres_linear_image = np.zeros((x_dim, max_slices, z_dim), dtype=np.float32)
+        
+        minislice_idx = 0
+        for i, s in enumerate(range(n_slice)):
+            
+            y_curr = sliceframe['original_slice_yz'].values[i]
+            if i == 0:
+                y_prev = 0
+            else:
+                y_prev = sliceframe['original_slice_yz'].values[i-1]
+            
+            n_minislices = distances[i]
+            tba_minislices = sliceframe['int_distance_x10'].values[i]
+            
+            for k in range(n_minislices):
+                
+                k_begin = i * resolution_increase
+                
+                if k < n_minislices // 2:
+                    hres_linear_image[:, n_minislices, :] = nifti_data[:, y_prev, :]
+                else:
+                    hres_linear_image[:, n_minislices, :] = nifti_data[:, y_curr, :]
+              
+                n_minislices += 1
+        
         
         print("INFO: Image creation...")
         # Create or pad the full array
         if interpolation_counter < maxNslices:
             # If we need to pad, create a new larger array
-            full_bbb = np.zeros((x_dim, maxNslices, z_dim))
-            full_bbb[:, :interpolation_counter, :] = bbb[:, :interpolation_counter, :]
+            full_bbb = np.zeros((x_dim, maxNslices, z_dim), dtype=np.float32)
+            #full_bbb[:, :interpolation_counter, :] = bbb[:, :interpolation_counter, :]
             bbb = full_bbb
         else:
             print(f"Houston, we have a problem! More than {maxNslices} slices!!!")
@@ -535,43 +486,39 @@ for subject in subject_list:
                 hole_counter += 1
                 hole_list.append(slice_idx)
                 bbb[:, slice_idx+1, :] = bbb[:, slice_idx+2, :]
-        
-        # Write hole list to excel
-        if hole_list:
-            df = pd.DataFrame([loopRef[subsidInd-1] + hole_list])
-            with pd.ExcelWriter(HoleFile, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
-                df.to_excel(writer, sheet_name='Sheet 1', startrow=subsidInd, startcol=0, header=False, index=False)
-        
+             
         # Create NIfTI image for linearized data
         print("INFO: Disk writing...")
         
         # Create header for the new image
         new_affine = nifti_img.affine.copy()
         # Adjust y-axis spacing
-        new_affine[1, 1] = new_affine[1, 1] / 10
+        new_affine[1, 1] = new_affine[1, 1] / resolution_increase
         
         # Create a new image with the linearized data
-        lin_img = nib.Nifti1Image(bbb, new_affine, nifti_img.header)
-        lin_img.header['pixdim'][2] = nifti_img.header['pixdim'][2] / 10  # Adjust y resolution
+        lin_img = nib.Nifti1Image(hres_linear_image, new_affine, nifti_img.header)
+        lin_img.header['pixdim'][2] = nifti_img.header['pixdim'][2] / resolution_increase  # Adjust y resolution
         
         # Save the linearized image
-        nib.save(lin_img, os.path.join(outImPath, subject, f"on{side}{Lin4image}"))
+        nib.save(lin_img, os.path.join(outImPath, subject, f"on_py_{side}{Lin4image}"))
         
         # Save the cc_value data
         with open(os.path.join(outImPath, subject, f"on_{side}{Lin4pkl}"), 'wb') as f:
             pickle.dump(cc_value, f)
         
         # Normalize the data
-        lengthfactor = maxNslices / round(cc_value[active_slice-1]['total_length'] / 
-                                            (nifti_img.header['pixdim'][2] / 10))
+        slice_length = round(cc_value[-1]['total_length'] / (nifti_img.header['pixdim'][2] / 10))
+        lengthfactor = max_slices / slice_length
         
-        zz = np.zeros_like(bbb)
-        check_range = np.zeros(maxNslices, dtype=int)
+        zz = np.zeros_like(hres_linear_image)
+        check_range = np.zeros(max_slices, dtype=int)
         
         print("INFO: Normalization...")
         
-        for ii in range(maxNslices):
-            jj = round(ii / maxNslices * original_linearized_slices)  # Figure out slice in aligned that needs to go into the ii-th slice of the normalized
+        for ii in range(max_slices):
+            # Figure out slice in aligned that needs to go 
+            # into the ii-th slice of the normalized
+            jj = round(ii / max_slices * original_linearized_slices)  
             if jj < 1:
                 jj = 1
             check_range[ii] = jj
@@ -590,29 +537,6 @@ for subject in subject_list:
         with open(os.path.join(outImPath, subject, f"on_{side}{Norm4pkl}"), 'wb') as f:
             pickle.dump(cc_value, f)
         
-        # Write range data to excel
-        df = pd.DataFrame([loopRef[subsidInd-1] + list(check_range)])
-        with pd.ExcelWriter(RangeFile, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
-            df.to_excel(writer, sheet_name='Sheet 1', startrow=subsidInd+1, startcol=0, header=False, index=False)
-
-# Write section data to excel
-tablelength_df = pd.DataFrame(tablelength_data)
-loopRef_df = pd.DataFrame(loopRef)
-
-stretxt_df = pd.DataFrame([stretxt])
-with pd.ExcelWriter(LenStretchFile, engine='openpyxl') as writer:
-    stretxt_df.to_excel(writer, sheet_name='Sheet 1', startrow=0, startcol=0, header=False, index=False)
-    loopRef_df.to_excel(writer, sheet_name='Sheet 1', startrow=1, startcol=0, header=False, index=False)
-    tablelength_df.to_excel(writer, sheet_name='Sheet 1', startrow=1, startcol=3, header=False, index=False)
-    
-# Now write the resampled data
-resamptablelength_df = pd.DataFrame(resamptablelength_data)
-resamploopRef_df = pd.DataFrame(resamploopRef)
-
-with pd.ExcelWriter(ResampStretchFile, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
-    resamploopRef_df.to_excel(writer, sheet_name='Sheet 1', startrow=1, startcol=0, header=False, index=False)
-    resamptablelength_df.to_excel(writer, sheet_name='Sheet 1', startrow=1, startcol=4, header=False, index=False)
-
 print("INFO: Processing complete!")
 
 
