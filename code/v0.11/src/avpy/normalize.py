@@ -79,6 +79,14 @@ def memory_report(func):
         return result
     return wrapper
 
+def log_variable_memory_usage(variables, label):
+    """Log memory usage of specified variables."""
+    print(f"\n[{datetime.now().strftime('%H:%M:%S')}] MEMORY PROFILE ({label}):")
+    for var_name, var_value in variables.items():
+        size_mb = sys.getsizeof(var_value) / (1024 * 1024)  # Convert to MB
+        print(f"  {var_name}: {size_mb:.2f} MB")
+    print()
+
 # Get current working directory
 curwd = os.getcwd()
 
@@ -168,7 +176,7 @@ for subject in subject_list:
         
         # Load the nifti file
         nifti_img = nib.load(f"{fname}.nii.gz")
-        nifti_data = nifti_img.get_fdata()
+        nifti_data = nifti_img.get_fdata(dtype=np.float32)
         log_memory_usage(f"After loading {subject} - on_{side}")
         
         # Check if the image is empty
@@ -186,7 +194,7 @@ for subject in subject_list:
         z_resolution = nifti_img.header.get_zooms()[2]
         
         # Calculate the center of the slice to be able to shift the centroid of the ROI there
-        image_center = [round(z_dim/2), round(x_dim/2)]
+        image_center = [round(x_dim/2), round(z_dim/2)]
         active_slice = -1
         segment_type = 0
         
@@ -202,7 +210,6 @@ for subject in subject_list:
             # Take xz "slice", eliminating other ys
             selected_y_slice = nifti_data[:, y, :]  
             max_voxel_value = np.max(selected_y_slice)
-            
             # Empty slice, go to the next
             if max_voxel_value == 0:
                 continue
@@ -247,30 +254,31 @@ for subject in subject_list:
             slice_data['eccent'] =  props[0].eccentricity
             
             # Shift the centroid of the region to the center of the image
-            x_center_shift = int(image_center[1] - round(orig_centroids[1]))
-            z_center_shift = int(image_center[0] - round(orig_centroids[0]))
-            
-            cc = np.roll(np.roll(selected_y_slice, 
-                                 x_center_shift, axis=0), 
-                         z_center_shift, axis=1)
+            x_center_shift = int(image_center[0] - round(orig_centroids[0]))
+            z_center_shift = int(image_center[1] - round(orig_centroids[1]))
             
             # TODO: Use two dictionary entries
             #slice_data['circshift'] = [x_center_shift, z_center_shift]
             slice_data['circshift_x'] = x_center_shift
             slice_data['circshift_z'] = z_center_shift
             
+            cc = np.roll(np.roll(selected_y_slice, 
+                                 x_center_shift, axis=0), 
+                         z_center_shift, axis=1)
+            
+            log_memory_usage(f"After shifting slice {y}")
             # Save the mask or segments
             if ismask == 0:
                 nifti_data[:, y, :] = cc
             else:
                 nifti_data[:, y, :] = np.sign(cc)
-            
+            log_memory_usage(f"After overwriting slice {y}")
             # Account for obliqueness of the optic nerve
             length_on = 0
             
             # TODO: Separate points in two fields and use different naming
-            slice_data['orig_centroid_x'] = orig_centroids[1]
-            slice_data['orig_centroid_z'] = orig_centroids[0]
+            slice_data['orig_centroid_x'] = orig_centroids[0]
+            slice_data['orig_centroid_z'] = orig_centroids[1]
             slice_data['distance'] = 0
             slice_data['length_on'] = length_on
             slice_data['length_on'] = y_resolution
