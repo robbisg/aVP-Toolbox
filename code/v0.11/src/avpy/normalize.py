@@ -94,7 +94,7 @@ curwd = os.getcwd()
 #with open(os.path.join(curwd, 'ONcontrol.txt'), 'r') as fileID:
 #    StudyPath = fileID.readline().strip()
     
-StudyPath = "/home/robbis/git/aVP-toolbox/data/test/"
+StudyPath = "/home/robbis/git/aVP-Toolbox/data/error/"
 
 inPath = os.path.join(StudyPath, 'data', 'proc')
 outImPath = os.path.join(StudyPath, 'data', 'proc')
@@ -205,7 +205,7 @@ for subject in subject_list:
         current_max_value = 0
         cc_value = []
         
-        interpolation_data = []    
+        interpolation_data = []
 
         # Process each slice along y axis
         for y in range(y_dim):
@@ -290,6 +290,7 @@ for subject in subject_list:
             slice_data['save_length'] = 0
             slice_data['int_distance_x10'] = 0
             slice_data['avgCSA'] = 0
+            slice_data['total_distance'] = y_resolution
             
             # TODO: Do we need to store it in the slice_data?
             
@@ -327,18 +328,35 @@ for subject in subject_list:
                                         cc_value[previous_slice]['orig_centroid_z'])
                 x_center_displacement = (orig_centroids[0] - 
                                         cc_value[previous_slice]['orig_centroid_x'])
+                y_center_displacement = (y - 
+                                         cc_value[previous_slice]['original_slice_yz'])
                 
                 zz = z_resolution * z_center_displacement
                 xx = x_resolution * x_center_displacement
-                yy = y_resolution * 2  # Why times 2?
+                yy = y_resolution * y_center_displacement
                 
-                slice_data['distance'] = np.sqrt(xx*xx + yy*yy + zz*zz)
+                distance = np.sqrt(xx*xx + yy*yy + zz*zz)
+                slice_data['distance'] = distance
                 
                 # Multiply by 10 and round to integer
                 # TODO: Maybe it is bettere `slice_gap`
-                distance_gap = round((slice_data['distance'] - 2*y_resolution) / 
-                                    y_resolution * 10)
+                slice_gap = round(distance / y_resolution)
+                slice_data['int_distance'] = slice_gap
                 
+                slice_data['other_gap'] = round(distance / y_resolution * 10)
+                
+                distance_gap = round((slice_data['distance'] - y_resolution) / 
+                                    y_resolution * 10)
+
+                # Riccardo's code
+                rzz = z_resolution * z_center_displacement
+                rxx = x_resolution * x_center_displacement
+                ryy = y_resolution * 2
+                
+                rdistance = np.sqrt(rxx*rxx + ryy*ryy + rzz*rzz)
+                
+                slice_data['int_distance_x10_rn'] = round((rdistance - 2*y_resolution) / 
+                                                             y_resolution * 10)
                 # If negative something is strange - ignore it
                 if distance_gap < 0:
                     current_slice_print = y
@@ -369,6 +387,7 @@ for subject in subject_list:
                 # And total length
                 slice_data['total_length'] = cc_value[previous_slice]['total_length'] + slice_data['length_on']
                 slice_data['int_distance_x10'] = distance_gap
+                slice_data['total_distance'] = cc_value[previous_slice]['total_distance'] + distance
                 
                 # Cross-sectional Area (CSA)
                 if slice_data['max_voxel_value'] != cc_value[previous_slice]['max_voxel_value']:
@@ -438,28 +457,42 @@ for subject in subject_list:
         distances = sliceframe['int_distance_x10'].values + 10
         hres_linear_image = np.zeros((x_dim, max_slices, z_dim), dtype=np.float32)
         
-        minislice_idx = 0
+        
+        slice_counter = 0               
         for i, s in enumerate(range(n_slice)):
             
+            # Get what slice to use
             y_curr = sliceframe['original_slice_yz'].values[i]
             if i == 0:
                 y_prev = 0
             else:
                 y_prev = sliceframe['original_slice_yz'].values[i-1]
             
-            n_minislices = distances[i]
-            tba_minislices = sliceframe['int_distance_x10'].values[i]
             
-            for k in range(n_minislices):
+            # Interpolate the slice
+            
+            # Get the number of slices to be inserted          
+            tba_minislices = sliceframe['int_distance_x10'].values[i]
+                       
+            
+            for k in range(tba_minislices):        
+                                
+                if k < tba_minislices:
+                    if k < tba_minislices // 2:
+                        hres_linear_image[:, slice_counter, :] = nifti_data[:, y_prev, :]
+                    else:
+                        hres_linear_image[:, slice_counter, :] = nifti_data[:, y_curr, :]
+
+                slice_counter += 1
                 
-                k_begin = i * resolution_increase
-                
-                if k < n_minislices // 2:
-                    hres_linear_image[:, n_minislices, :] = nifti_data[:, y_prev, :]
-                else:
-                    hres_linear_image[:, n_minislices, :] = nifti_data[:, y_curr, :]
-              
-                n_minislices += 1
+            interval = slice(slice_counter, slice_counter + resolution_increase)
+            
+            hres_linear_image[
+                :, slice_counter:slice_counter + resolution_increase, :
+            ] = nifti_data[:, y_curr, :][:, np.newaxis, :]
+            
+            slice_counter += resolution_increase + 1
+            
         
         
         print("INFO: Image creation...")
@@ -742,3 +775,5 @@ for subject in subject_list:
                 rtable_df.transpose().to_excel(writer, sheet_name='Sheet 1', 
                                               startrow=(subsidInd-1)*len(rtable), 
                                               startcol=5, header=False, index=False)
+                
+                
