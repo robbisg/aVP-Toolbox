@@ -1,0 +1,107 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "avpy"
+# Keep in sync with readme.md:
+description = "A toolbox for the analysis of optical nerve data"
+readme = "readme.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+keywords = ["science", "neuroscience", "optical nerve"]
+authors = [
+  { name = "Roberto Guidotti" },
+  { name = "Emanuele Pravatà" },
+  { name = "Riccardo Navarra" },
+]
+classifiers = [
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python",
+]
+dependencies = [
+  "psutil",               # for joblib
+  "packaging",
+  "numpy",
+  "scipy",
+  "matplotlib",
+  "nibabel",
+  "joblib >= 0.14",
+  "threadpoolctl",
+  "dask[distributed]",
+  "bokeh < 3",            # for distributed dashboard
+  "jupyter-server-proxy", # to have dask and jupyter working together
+  "scikit-learn",
+  "scikit-image",
+  "pandas",
+  "seaborn",
+  "sekupy"
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+tests = [
+  "pytest",
+  "pytest-cov",
+  "pooch",
+  "psutil",
+  "datalad",
+  "ruff",
+  "mkdocs",
+  "mkdocs-material >= 9.0.4",
+  "mkdocs-material-extensions",
+  "mkdocs-macros-plugin",
+  "mkdocs-include-markdown-plugin",
+  "mkdocs-exclude",
+  "mkdocstrings-python",
+  "mike",
+  "jinja2",
+  "black",                          # function signature formatting
+  "livereload",
+  "openneuro-py >= 2022.2.0",
+  "httpx >= 0.20",
+  "tqdm",
+  "Pygments",
+  "pyyaml",
+]
+
+[project.scripts]
+avpy = "avpy.main:main"
+
+[project.urls]
+homepage = ""
+repository = ""
+changelog = ""
+
+[tool.hatch.version]
+source = "vcs"
+raw-options = { version_scheme = "release-branch-semver" }
+
+[tool.hatch.build]
+exclude = [
+  "/.*",
+  "/codecov.yml",
+  "**/tests",
+  "/docs",
+  "/Makefile",
+  "/BUILDING.md",
+  "/CONTRIBUTING.md",
+  "ignore_words.txt",
+]
+
+[tool.codespell]
+skip = "docs/site/*,*.html"
+ignore-words = "ignore_words.txt"
+builtin = "clear,rare,informal,names,usage"
+quiet-level = 3
+interactive = 3
+enable-colors = ""
+count = ""
+
+[tool.pytest.ini_options]
+addopts = "-ra -vv --tb=short --cov=avpy --cov-report= --junit-xml=junit-results.xml --durations=10"
+testpaths = ["avpy"]
+junit_family = "xunit2"
+
+[tool.ruff]
+exclude = ["dist/", "build/"]
