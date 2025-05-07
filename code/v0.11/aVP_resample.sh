@@ -83,23 +83,27 @@ do
         ii=${imPath}/${sbj}/${anat}${ss}${baseImage}
         nn=$(basename $ii .nii.gz)
         mm=$(dirname  $ii)
-	echo $ii
-	echo $nn
-	echo $mm
+	    
+        echo $ii
+	    echo $nn
+	    echo $mm
+        
         fslmaths ${ii} -mul 1 ${mm}/${nn}2.nii.gz
-	fslorient -setqformcode 1 ${mm}/${nn}2.nii.gz
+	    fslorient -setqformcode 1 ${mm}/${nn}2.nii.gz
         fslorient -setsformcode 1 ${mm}/${nn}2.nii.gz
     
-       fslhd -x ${mm}/${nn}2.nii.gz | sed "s/dy = '[^\']*'/dy = '0.0245'/g" > ${mm}/hd.xml
-       
-    
+        fslhd -x ${mm}/${nn}2.nii.gz | sed "s/dy = '[^\']*'/dy = '0.0245'/g" > ${mm}/hd.xml
         fslcreatehd ${mm}/hd.xml ${mm}/${nn}2.nii.gz
-	rm ${mm}/hd.xml 
-	fslorient -copyqform2sform ${mm}/${nn}2.nii.gz
-#
-#  set the origin to centre of first slice
-#
-#
+	    
+        rm ${mm}/hd.xml 
+	    
+        fslorient -copyqform2sform ${mm}/${nn}2.nii.gz
+        
+        #
+        #  set the origin to centre of first slice
+        #
+        #
+        
         flirt -in ${mm}/${nn}2.nii.gz -ref ${mm}/${nn}2.nii.gz -applyisoxfm 0.6 -datatype int -interp nearestneighbour -nosearch -out ${mm}/${nn}_iso06pre
         imcp ${mm}/${nn}_iso06pre ${mm}/${nn}_iso06
         fslorient -setsform -0.6 0 0 74.4 0 0.6 0 -60.6  0 0 0.6 -21.0 0 0 0 1 ${mm}/${nn}_iso06
