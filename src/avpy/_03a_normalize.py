@@ -65,45 +65,15 @@ def main(path="./"):
     outResPath = os.path.join(StudyPath, 'results')
 
     # Output file paths
-    DataFile = os.path.join(outResPath, 'py_aVP_slice_data.xlsx')
-    HoleFile = os.path.join(outResPath, 'py_log_check_hole.xlsx')
-    RangeFile = os.path.join(outResPath, 'py_log_check_range.xlsx')
-    LenStretchFile = os.path.join(outResPath, 'py_aVP_section_CSA_length.xlsx')
+    DataFile = os.path.join(outResPath, 'aVP_slice_data.xlsx')
 
-    # Define column labels
-    tablabels = [
-        'curr_sli_yz', 'orig_sli_yz', 'point_y', 'point_z', 'circshift_y', 'circshift_z',
-        'dist', 'int_dist_x10', 'len_on', 'tot_len', 'mMax', 'save_len',
-        'CSArea', 'Eccent', 'MajAxis', 'MinAxis', 'AvgCSA'
-    ]
-
-    stretxt = [
-        'Subject', 'ONsection', 'side', 'TotLength', 'OT_length', 'OC_length',
-        'iCran_length', 'iCan_length', 'iOrb_length', 'OT_CSA', 'OC_CSA',
-        'iCran_CSA', 'iCan_CSA', 'iOrb_CSA', 'SegmCode 1', 'SegmCode 2',
-        'SegmCode 3', 'SegmCode 4', 'SegmCode 5'
-    ]
-
-    rangetxt = ['Subject', 'ONsection', 'side', 'Slice...']
-    #pd.DataFrame([rangetxt]).to_excel(RangeFile, index=False, header=False)
-
-    holetxt = ['Subject', 'ONsection', 'side', 'Slice...']
-    #pd.DataFrame([holetxt]).to_excel(HoleFile, index=False, header=False)
 
     # Define image output file names
-    Lin4image = '_py_linearize_4bc.nii.gz'
-    Lin4pkl = '_py_linearize_4bc.pkl'
-
-    Norm4image = '_py_normalized_4bc.nii.gz'
-    Norm4pkl = '_py_normalized_4bc.pkl'
-
-    fullNorm4image = '_py_full_normalized_4bc.nii.gz'
+    Lin4image = '_linearize_4bc.nii.gz'
+    Norm4image = '_normalized_4bc.nii.gz'
 
     sides = ['l', 'r']
     isbj = 0
-    tablelength = []
-
-    maxNslices = 2500
 
     # 0: use combination of aVP segments. 1: use individual aVP segments (not tested)
     ismask = 0
@@ -114,9 +84,6 @@ def main(path="./"):
 
     resolution_increase = 10
     max_slices = 150 * resolution_increase
-
-    loopRef = []
-    tablelength_data = []
 
     dataframe = []
 
