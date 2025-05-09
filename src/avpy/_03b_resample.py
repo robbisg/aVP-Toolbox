@@ -52,23 +52,21 @@ def process_images(study_path, base_image):
             header = img.header.copy()
             header['qform_code'] = 1
             header['sform_code'] = 1
-            
-            # Set the dy value to 0.0245
-            header['pixdim'][2] = 0.0245
-            
+                        
             # Create a new image with modified header
             modified_img = nib.Nifti1Image(img.get_fdata(), img.affine, header)
             
             # Resample to isotropic 0.6mm resolution
             # This replaces flirt -applyisoxfm 0.6
             target_affine = np.diag([-0.6, 0.6, 0.6, 1])
-            target_affine[0, 3] = 74.4
-            target_affine[1, 3] = -60.6
-            target_affine[2, 3] = -21.0
+            target_affine[0, 3] = img.affine[0, 3]
+            target_affine[1, 3] = img.affine[1, 3]
+            target_affine[2, 3] = img.affine[2, 3]
             
             # Use nearest neighbor interpolation for discrete data
             resampled_img = resample_img(
                 modified_img,
+                target_shape=(250, 102, 72),
                 target_affine=target_affine,
                 interpolation='nearest'
             )

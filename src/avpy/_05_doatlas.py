@@ -96,7 +96,9 @@ def main(path="./"):
                     
                     # Use the binary mask
                     bin_img = nib.load(output_path + ".nii.gz")
-                
+                    
+                print(f"INFO: Binarized image created from {input_path}.nii.gz")
+                print(f"image shape: {bin_img.shape}")
                 # Add to running sum based on side
                 if side == 'r':
                     if r_map is None:

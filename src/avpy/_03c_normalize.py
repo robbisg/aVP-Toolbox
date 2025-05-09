@@ -38,7 +38,6 @@ def main(path="./"):
 
     ResampDataFile = os.path.join(outResPath, 'aVP_slice_data_iso.xlsx')
     ResampStretchFile = os.path.join(outResPath, 'aVP_section_CSA_length_iso.xlsx')
-    LenStretchFile = os.path.join(outResPath, 'py_aVP_section_CSA_length.xlsx')
 
     sides = ['l', 'r']
 
@@ -46,16 +45,14 @@ def main(path="./"):
     with open(os.path.join(StudyPath, 'data', 'sbj.list'), 'r') as fileID:
         subject_list = [line.strip() for line in fileID]
 
-    image_types = ['linearize', 'normalize']
+    image_types = ['linearize', 'normalized']
     segment_info = []
+    dataframe = []
 
-    for subject in subject_list:
-        isbj += 1
-        
+    for subject in subject_list:        
         for side_idx, side in enumerate(sides):
             for rr_idx, image_type in enumerate(image_types):
                 # Keep track of the combined index
-                subsidInd = (isbj-1)*4 + rr_idx*2 + side_idx + 1
                 bname = f"{subject}/on{side}_{image_type}_4bc_iso06"
                 fname = os.path.join(inPath, bname)
                 
@@ -85,7 +82,7 @@ def main(path="./"):
                 # Process each slice
                 for y in range(dy):
                     selected_y_slice = nifti_data[:, y, :]
-                    max_voxel_value = np.max(selected_y_slice)
+                    max_voxel_value = int(np.round(np.max(selected_y_slice)))
                     
                     if max_voxel_value == 0:
                         continue
@@ -101,11 +98,10 @@ def main(path="./"):
                     
                     number_of_areas += 1
                     sum_cross_section_area += area
-                    
-                    previous_voxel_value = cc_value[current_slice_idx-1]['max_voxel_value']
-                    
-                    if current_slice_idx > 1:
                                         
+                    if current_slice_idx > 1:
+                        previous_voxel_value = cc_value[current_slice_idx-1]['max_voxel_value']
+           
                         if max_voxel_value != previous_voxel_value:
                             
                             cc_value[current_slice_idx-1]['save_length'] = total_length
@@ -138,6 +134,9 @@ def main(path="./"):
                     current_slice_idx += 1
                     
                     slice_data = {
+                        'subject': subject,
+                        'side': side,
+                        'image_type': image_type,
                         'current_slice_yz': current_slice_idx,
                         'original_slice_yz': y,
                         'max_voxel_value': max_voxel_value,
@@ -163,16 +162,30 @@ def main(path="./"):
                 cc_value[current_slice_idx-1]['save_length'] = cc_value[current_slice_idx-1]['total_length']
                 cc_value[current_slice_idx-1]['average_area'] = sum_cross_section_area / number_of_areas
 
+                sliceframe = pd.DataFrame(cc_value)
+                dataframe.append(sliceframe)
 
+                # Save the last segment info
+                segment_info.append(
+                    {
+                        'subject': subject,
+                        'side': side,
+                        'image_type': image_type,
+                        'segment_type': max_voxel_value,
+                        'segment_name': segment_types[max_voxel_value],
+                        'lenght': total_length,
+                        'area': sum_cross_section_area / number_of_areas
+                    }
+                )
     # Build dataframe
-    dataframe = pd.DataFrame(cc_value)
+    dataframe = pd.concat(dataframe)
     dataframe.to_excel(
         ResampDataFile, index=False, header=True
     )
     # Add informations for single segments
     segment_info = pd.DataFrame(segment_info)
     segment_info.to_excel(
-        LenStretchFile, index=False, header=True
+        ResampStretchFile, index=False, header=True
     )
     
 if __name__ == "__main__":

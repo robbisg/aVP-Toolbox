@@ -151,7 +151,7 @@ def main(path="./"):
                 selected_y_slice = nifti_data[:, y, :]
                 
                 # TODO: this is current_voxel_value
-                max_voxel_value = np.round(np.max(selected_y_slice))
+                max_voxel_value = int(np.round(np.max(selected_y_slice)))
                 
                 # Empty slice, go to the next
                 if max_voxel_value == 0:
@@ -287,7 +287,7 @@ def main(path="./"):
             
             sliceframe = pd.DataFrame(cc_value)
             sliceframe.to_excel(
-                os.path.join(outImPath, subject, f"on_py_{side}_slice_data.xlsx"), 
+                os.path.join(outImPath, subject, f"on{side}_slice_data.xlsx"), 
                 index=False, header=True
             )
             dataframe.append(sliceframe)       
@@ -367,13 +367,14 @@ def main(path="./"):
             new_affine = nifti_img.affine.copy()
             # Adjust y-axis spacing
             new_affine[1, 1] = new_affine[1, 1] / resolution_increase
+            new_affine[:3, :3] = new_affine[:3, :3] * np.eye(3)            
             
             # Create a new image with the linearized data
             lin_img = nib.Nifti1Image(hres_linear_image, new_affine, nifti_img.header)
             lin_img.header['pixdim'][2] = nifti_img.header['pixdim'][2] / resolution_increase  # Adjust y resolution
             
             # Save the linearized image
-            nib.save(lin_img, os.path.join(outImPath, subject, f"on_py_{side}{Lin4image}"))
+            nib.save(lin_img, os.path.join(outImPath, subject, f"on{side}{Lin4image}"))
             
             # Normalize the data
             slice_length = round(cc_value[-1]['length_on'] / (nifti_img.header['pixdim'][2] / 10))

@@ -17,6 +17,7 @@
 # Please go to http://creativecommons.org/licenses/by/4.0/ to view a complete copy of this licence.
 
 import os
+import pandas as pd
 import numpy as np
 import nibabel as nib
 import csv
@@ -32,21 +33,18 @@ def main(path='./'):
     # Set up paths
     in_path = f"{study_path}/data/proc"
     out_path = f"{study_path}/results"
-    out_file = "volume_py_version.csv"
+    out_file = "volume_data.csv"
 
     # Create output directory if it doesn't exist
     os.makedirs(out_path, exist_ok=True)
-
-    # Initialize output CSV file
-    with open(os.path.join(out_path, out_file), 'w', newline='') as f:
-        writer = csv.writer(f, delimiter=';')
-        writer.writerow(["Subject", "NerveSegment", "Side", "NumberVoxels", "Volume"])
 
     # Read subject list
     with open(f"{study_path}/data/sbj.list", 'r') as f:
         subjects = [line.strip() for line in f]
 
     # Process each subject
+    
+    volume_data = []
     for sbj in subjects:
         ii = os.path.join(in_path, sbj)
         
@@ -62,6 +60,9 @@ def main(path='./'):
                     img = nib.load(mask_file)
                     data = img.get_fdata()
                     
+                    # Get image shape
+                    dim_x, dim_y, dim_z = data.shape
+                    
                     # Calculate voxel volume in mm³
                     voxel_size = np.prod(img.header.get_zooms())
                     
@@ -72,14 +73,29 @@ def main(path='./'):
                     volume = num_voxels * voxel_size
                     
                     print(mask_file)
-                    print(f"{sbj};{nn};{ss};{num_voxels};{volume}")
+                    print(f"{sbj} {nn} {ss} {num_voxels} {volume} \
+                        {dim_x} {dim_y} {dim_z}")
                     
-                    # Write to CSV file
-                    with open(os.path.join(out_path, out_file), 'a', newline='') as f:
-                        writer = csv.writer(f, delimiter=';')
-                        writer.writerow([sbj, nn, ss, num_voxels, volume])
+                    volume_data.append(
+                        {
+                            'Subject':sbj,
+                            'NerveSegment':nn,
+                            'Side':ss,
+                            'NumberVoxels':num_voxels,
+                            'Volume':volume,
+                            'DimX':dim_x,
+                            'DimY':dim_y,
+                            'DimZ':dim_z,
+                        }
+                    )
+                    
                 else:
                     print(f"Warning: File {mask_file} does not exist.")
+    
+    # Write volume data to CSV
+    volume_data = pd.DataFrame(volume_data)
+    volume_data.to_csv(os.path.join(out_path, out_file), sep=',', index=False)
+    print(f"Volume data written to {os.path.join(out_path, out_file)}")
                 
 if __name__ == "__main__":
     main()
