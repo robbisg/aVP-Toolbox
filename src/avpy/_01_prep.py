@@ -23,6 +23,7 @@ import nibabel as nib
 import numpy as np
 from nilearn import image
 from pathlib import Path
+import sentry_sdk
 
 NAME = "prep"
 
@@ -30,9 +31,7 @@ def apply_threshold(img_path, threshold_min, threshold_max, binary=True, multipl
     """Apply threshold to image and optionally binarize and multiply."""
     img = nib.load(img_path)
     data = img.get_fdata()
-    
-    print(img.affine)
-    
+        
     # Apply threshold
     thresholded = np.logical_and(data >= threshold_min, data <= threshold_max).astype(int)
     
@@ -126,24 +125,21 @@ def main(path="./"):
             
             # Check overlap
             mask = ot.get_fdata() != 0
+            combined_data = ot.get_fdata().copy()
+            
             images = [onincr, oninca, oninor, oc]
             for img in images:
                 img_data = img.get_fdata()
                 overlap = np.logical_and(mask, img_data != 0)
-                print(f"Overlap {img.get_filename()} : {np.sum(overlap)}")
-                
+               
                 if np.sum(overlap) > 0:
                     print(f"Warning: Overlap detected in {img.get_filename()}")
-                else:
-                    mask = np.logical_or(mask, img_data != 0)
-                
-            
-            # Add them together
-            combined_data = (ot.get_fdata() + 
-                            onincr.get_fdata() + 
-                            oninca.get_fdata() + 
-                            oninor.get_fdata() + 
-                            oc.get_fdata())
+                    sentry_sdk.capture_message(
+                        f"Warning: Overlap detected in {img.get_filename()}"
+                    )
+
+                combined_data += img_data
+                combined_data[overlap] -= img_data[overlap]
             
             # Create combined image
             combined_img = nib.Nifti1Image(combined_data, ot.affine, ot.header)
