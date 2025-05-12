@@ -27,8 +27,7 @@ def main(path="./"):
     }
 
     # Read study path from control file
-    with open(os.path.join(path,'ONcontrol.txt'), 'r') as f:
-        StudyPath = f.readline().strip()
+    StudyPath = path
         
     #StudyPath = "/home/robbis/git/aVP-toolbox/data/test/"
 

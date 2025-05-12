@@ -3,12 +3,21 @@ from textwrap import dedent
 import time
 import numpy as np
 import logging
-from . import _01_prep, _02_basics, _03a_normalize, \
+from avpy import _01_prep, _02_basics, _03a_normalize, \
     _03b_resample, _03c_normalize, _05_doatlas, _06_stats
 
 logger = logging.getLogger(__name__)
 
+
 def main():
+    
+    import sentry_sdk
+    sentry_sdk.init(
+        dsn="https://f2866916959e41bc81abdfaf580f3d26@o252224.ingest.us.sentry.io/1439199",
+        # Add request headers and IP for users,
+        # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
+        send_default_pii=True,
+    )
 
     parser = argparse.ArgumentParser()
     parser.add_argument("config", nargs="?", default=None)
@@ -69,35 +78,40 @@ def main():
 
     options = parser.parse_args()
     
-    if options.dataset_b == options.dataset_a == None:
-    
-        step_modules = [
-            _01_prep,
-            _02_basics,
-            _03a_normalize,
-            _03b_resample,
-            _03c_normalize,
-            _05_doatlas
-        ]
+    try:
+        if options.dataset_b == options.dataset_a == None:
         
-        for step_module in step_modules:
-            start = time.time()
-            logger.info(f"Running {step_module.NAME}...")
-            step_module.main(options.root_dir)
-            elapsed = time.time() - start
-            hours, remainder = divmod(elapsed, 3600)
-            hours = int(hours)
-            minutes, seconds = divmod(remainder, 60)
-            minutes = int(minutes)
-            seconds = int(np.ceil(seconds))  # always take full seconds
-            elapsed = f"{seconds}s"
-            if minutes:
-                elapsed = f"{minutes}m {elapsed}"
-            if hours:
-                elapsed = f"{hours}h {elapsed}"
-            logger.info(f"done ({elapsed})")
+            step_modules = [
+                _01_prep,
+                _02_basics,
+                _03a_normalize,
+                _03b_resample,
+                _03c_normalize,
+                _05_doatlas
+            ]
             
-    else:
-        _06_stats.main(options.root_dir, 
-                        options.dataset_a, 
-                        options.dataset_b)
+            for step_module in step_modules:
+                start = time.time()
+                logger.info(f"Running {step_module.NAME}...")
+                step_module.main(options.root_dir)
+                elapsed = time.time() - start
+                hours, remainder = divmod(elapsed, 3600)
+                hours = int(hours)
+                minutes, seconds = divmod(remainder, 60)
+                minutes = int(minutes)
+                seconds = int(np.ceil(seconds))  # always take full seconds
+                elapsed = f"{seconds}s"
+                if minutes:
+                    elapsed = f"{minutes}m {elapsed}"
+                if hours:
+                    elapsed = f"{hours}h {elapsed}"
+                logger.info(f"done ({elapsed})")
+                
+        else:
+            _06_stats.main(options.root_dir, 
+                            options.dataset_a, 
+                            options.dataset_b)
+    except Exception as e:
+        sentry_sdk.capture_exception(e)
+        print(e)
+            

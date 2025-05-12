@@ -22,13 +22,13 @@ import numpy as np
 import nibabel as nib
 import csv
 from pathlib import Path
+import sentry_sdk
 
 NAME = "basics"
 
 def main(path='./'):
-    # Read study path from ONcontrol.txt
-    with open(os.path.join(path,'ONcontrol.txt'), 'r') as f:
-        study_path = f.read().strip()
+
+    study_path = path
 
     # Set up paths
     in_path = f"{study_path}/data/proc"
@@ -73,8 +73,12 @@ def main(path='./'):
                     volume = num_voxels * voxel_size
                     
                     print(mask_file)
-                    print(f"{sbj} {nn} {ss} {num_voxels} {volume} \
-                        {dim_x} {dim_y} {dim_z}")
+                    print(f"{sbj} {nn} {ss} {num_voxels} {volume} {dim_x} {dim_y} {dim_z}")
+                    
+                    if (dim_x, dim_y, dim_z) != (256, 256, 72):
+                        sentry_sdk.capture_message(
+                            f"WARNING: {mask_file} has unexpected dimensions: {dim_x}, {dim_y}, {dim_z}"
+                        )
                     
                     volume_data.append(
                         {
