@@ -58,7 +58,9 @@ def process_images(study_path, base_image):
             
             # Resample to isotropic 0.6mm resolution
             # This replaces flirt -applyisoxfm 0.6
-            target_affine = np.diag([-0.6, 0.6, 0.6, 1])
+            resampling = np.array([0.6, 0.6, 0.6, 1]) * np.sign(np.diag(img.affine))
+            
+            target_affine = np.diag(resampling)
             target_affine[0, 3] = img.affine[0, 3]
             target_affine[1, 3] = img.affine[1, 3]
             target_affine[2, 3] = img.affine[2, 3]

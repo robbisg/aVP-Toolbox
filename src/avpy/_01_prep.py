@@ -145,7 +145,7 @@ def main(path="./"):
             
             # Create combined image
             combined_img = nib.Nifti1Image(combined_data, ot.affine, ot.header)
-            print(combined_data.max())
+
             assert combined_data.max() <= 16
             combined_path = os.path.join(oo, f"on_{xx}.nii.gz")
             nib.save(combined_img, combined_path)
