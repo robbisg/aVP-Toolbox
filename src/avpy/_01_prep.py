@@ -140,6 +140,8 @@ def main(path="./"):
 
                 combined_data += img_data
                 combined_data[overlap] -= img_data[overlap]
+                
+                mask = np.logical_or(mask, img_data != 0)
             
             # Create combined image
             combined_img = nib.Nifti1Image(combined_data, ot.affine, ot.header)
