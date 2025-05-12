@@ -47,16 +47,13 @@ import psutil
 import time
 import gc
 from datetime import datetime
+import sentry_sdk
 
 NAME = "normalize"
 
 def main(path="./"):
     # Get current working directory
-    #curwd = os.getcwd()
-
-    # Read study path from control file
-    with open(os.path.join(path,'ONcontrol.txt'), 'r') as f:
-        StudyPath = f.readline().strip()
+    StudyPath = path
         
     #StudyPath = "/home/robbis/git/aVP-toolbox/data/test/"
 
@@ -246,39 +243,43 @@ def main(path="./"):
                 number_of_areas += 1
                 sum_cross_section_area += area
                 
-                
-                # Initialize dictionary for this slice
-                slice_data = dict()
-                slice_data['subject'] = subject
-                slice_data['side'] = side
-                slice_data['current_slice_yz'] = active_slice
-                slice_data['original_slice_yz'] = y
-                slice_data['segment_name'] = segment_types[int(max_voxel_value)]
-                slice_data['max_voxel_value'] = max_voxel_value
-                slice_data['circshift_x'] = x_center_shift
-                slice_data['circshift_z'] = z_center_shift
+                try:
+                    # Initialize dictionary for this slice
+                    slice_data = dict()
+                    slice_data['subject'] = subject
+                    slice_data['side'] = side
+                    slice_data['current_slice_yz'] = active_slice
+                    slice_data['original_slice_yz'] = y
+                    slice_data['segment_name'] = segment_types[int(max_voxel_value)]
+                    slice_data['max_voxel_value'] = max_voxel_value
+                    slice_data['circshift_x'] = x_center_shift
+                    slice_data['circshift_z'] = z_center_shift
 
 
-                slice_data['orig_centroid_x'] = orig_centroids[0]
-                slice_data['orig_centroid_z'] = orig_centroids[1]
-                            
-                slice_data['majaxis'] = props[0].major_axis_length * x_resolution
-                slice_data['minaxis'] = props[0].minor_axis_length * z_resolution
-                slice_data['area']    = area
-                slice_data['eccent']  = props[0].eccentricity
-                
-                slice_data['average_area'] = 0
-                slice_data['save_length'] = 0
-                
-                slice_data['distance'] = distance
-                slice_data['slice_gap'] = slice_gap
-                slice_data['slice_gap_upsampled'] = slice_gap_upsampled
-                slice_data['length_on'] = length_optical_nerve
-                slice_data['length_on_upsampled'] = length_optical_nerve_gap
-                slice_data['int_distance'] = n_slices
-                slice_data['int_upsampled_distance'] = n_slices_upsampled
-                
-                cc_value.append(slice_data)            
+                    slice_data['orig_centroid_x'] = orig_centroids[0]
+                    slice_data['orig_centroid_z'] = orig_centroids[1]
+                                
+                    slice_data['majaxis'] = props[0].major_axis_length * x_resolution
+                    slice_data['minaxis'] = props[0].minor_axis_length * z_resolution
+                    slice_data['area']    = area
+                    slice_data['eccent']  = props[0].eccentricity
+                    
+                    slice_data['average_area'] = 0
+                    slice_data['save_length'] = 0
+                    
+                    slice_data['distance'] = distance
+                    slice_data['slice_gap'] = slice_gap
+                    slice_data['slice_gap_upsampled'] = slice_gap_upsampled
+                    slice_data['length_on'] = length_optical_nerve
+                    slice_data['length_on_upsampled'] = length_optical_nerve_gap
+                    slice_data['int_distance'] = n_slices
+                    slice_data['int_upsampled_distance'] = n_slices_upsampled
+                    
+                    cc_value.append(slice_data)
+                except Exception as e:
+                    sentry_sdk.capture_exception(e)
+                    print(f"ERROR: {e}")
+                    continue 
 
                 
             # Save processed info
@@ -301,6 +302,10 @@ def main(path="./"):
             if total_slices_upsampled > max_slices:
                 print(f"ERROR: Total upsampled slices exceed {max_slices} in subject {subject} side {side}!")
                 print("Please increase the number of max_slices in the code.")
+                sentry_sdk.capture_message(
+                    f"ERROR: Total upsampled slices exceed {max_slices} in subject {subject} side {side}!"
+                )
+                max_slices = total_slices_upsampled
             
             # Interpolate data pythonic
             hres_linear_image = np.zeros((x_dim, max_slices, z_dim), dtype=np.float32)

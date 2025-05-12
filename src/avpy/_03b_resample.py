@@ -82,8 +82,7 @@ def process_images(study_path, base_image):
 
 def main(path="./"):
     # Read study path from ONcontrol.txt
-    with open(os.path.join(path,'ONcontrol.txt'), 'r') as f:
-        study_path = f.read().strip()
+    study_path = path
     
     # Process linearized images
     print("Processing linearized images...")

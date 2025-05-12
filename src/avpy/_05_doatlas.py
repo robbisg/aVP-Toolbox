@@ -32,8 +32,7 @@ NAME = "doatlas"
 
 def main(path="./"):
     # Read study path from ONcontrol.txt
-    with open(os.path.join(path,'ONcontrol.txt'), 'r') as f:
-        study_path = f.readline().strip()
+    study_path = path
 
     # Set paths
     im_path = os.path.join(study_path, "data", "proc")

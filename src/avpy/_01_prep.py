@@ -50,8 +50,8 @@ def apply_threshold(img_path, threshold_min, threshold_max, binary=True, multipl
 
 def main(path="./"):
     # Read study path
-    with open(os.path.join(path,'ONcontrol.txt'), 'r') as f:
-        study_path = f.read().strip()
+
+    study_path = path
     
     in_path = os.path.join(study_path, "data", "orig")
     out_path = os.path.join(study_path, "data", "proc")
