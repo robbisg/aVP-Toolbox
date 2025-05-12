@@ -35,7 +35,8 @@ dependencies = [
   "scikit-image",
   "pandas",
   "seaborn",
-  "sekupy"
+  "sekupy",
+  "pingouin"
 ]
 dynamic = ["version"]
 
