@@ -110,10 +110,7 @@ def main(path="./"):
             nib.save(onincr, os.path.join(oo, f"onincr_{xx}.nii.gz"))
             
             print(f"{sbj} oni {xx}")
-        
-        # List output files
-        print(os.listdir(oo))
-        
+                
         # Combine files
         for xx in ['r', 'l']:
             # Load all component images
