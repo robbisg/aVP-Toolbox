@@ -31,8 +31,10 @@ def apply_threshold(img_path, threshold_min, threshold_max, binary=True, multipl
     img = nib.load(img_path)
     data = img.get_fdata()
     
+    print(img.affine)
+    
     # Apply threshold
-    thresholded = np.logical_and(data >= threshold_min, data <= threshold_max).astype(float)
+    thresholded = np.logical_and(data >= threshold_min, data <= threshold_max).astype(int)
     
     # Optionally binarize (already done by logical_and)
     if not binary:
@@ -107,6 +109,7 @@ def main(path="./"):
             # onincr
             onincr = apply_threshold(os.path.join(ii, f"on{xx}.nii.gz"), 6, 6, binary=True, multiplier=4)
             nib.save(onincr, os.path.join(oo, f"onincr_{xx}.nii.gz"))
+            
             print(f"{sbj} oni {xx}")
         
         # List output files
@@ -121,6 +124,20 @@ def main(path="./"):
             oninor = nib.load(os.path.join(oo, f"oninor_{xx}.nii.gz"))
             oc = nib.load(os.path.join(oo, f"oc_{xx}.nii.gz"))
             
+            # Check overlap
+            mask = ot.get_fdata() != 0
+            images = [onincr, oninca, oninor, oc]
+            for img in images:
+                img_data = img.get_fdata()
+                overlap = np.logical_and(mask, img_data != 0)
+                print(f"Overlap {img.get_filename()} : {np.sum(overlap)}")
+                
+                if np.sum(overlap) > 0:
+                    print(f"Warning: Overlap detected in {img.get_filename()}")
+                else:
+                    mask = np.logical_or(mask, img_data != 0)
+                
+            
             # Add them together
             combined_data = (ot.get_fdata() + 
                             onincr.get_fdata() + 
@@ -130,6 +147,8 @@ def main(path="./"):
             
             # Create combined image
             combined_img = nib.Nifti1Image(combined_data, ot.affine, ot.header)
+            print(combined_data.max())
+            assert combined_data.max() <= 16
             combined_path = os.path.join(oo, f"on_{xx}.nii.gz")
             nib.save(combined_img, combined_path)
             print(combined_path)
