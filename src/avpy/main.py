@@ -22,11 +22,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("config", nargs="?", default=None)
     parser.add_argument(
-        "--config",
-        dest="config_switch",
-        default=None,
-        metavar="FILE",
-        help="The path of the pipeline configuration file to use.",
+        "--root-dir",
+        dest="root_dir",
+        default="./",
+        help="Directory of the data to process.",
     )
     parser.add_argument(
         "--steps",
@@ -43,12 +42,7 @@ def main():
         steps. Can also be a tuple of steps."""
         ),
     )
-    parser.add_argument(
-        "--root-dir",
-        dest="root_dir",
-        default="./",
-        help="BIDS root directory of the data to process.",
-    )
+
     parser.add_argument(
         "--deriv_root",
         dest="deriv_root",
