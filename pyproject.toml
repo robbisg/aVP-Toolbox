@@ -36,7 +36,8 @@ dependencies = [
   "pandas",
   "seaborn",
   "sekupy",
-  "pingouin"
+  "pingouin",
+  "sentry-sdk"
 ]
 dynamic = ["version"]
 
