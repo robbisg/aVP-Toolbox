@@ -23,6 +23,8 @@ import nibabel as nib
 import csv
 from pathlib import Path
 import sentry_sdk
+import logging
+logger = logging.getLogger(__name__)
 
 NAME = "basics"
 
@@ -72,8 +74,8 @@ def main(path='./'):
                     # Calculate volume
                     volume = num_voxels * voxel_size
                     
-                    print(mask_file)
-                    print(f"{sbj} {nn} {ss} {num_voxels} {volume} {dim_x} {dim_y} {dim_z}")
+                    logger.debug(mask_file)
+                    logger.debug(f"{sbj} {nn} {ss} {num_voxels} {volume} {dim_x} {dim_y} {dim_z}")
                     
                     if (dim_x, dim_y, dim_z) != (256, 256, 72):
                         sentry_sdk.capture_message(
@@ -82,24 +84,24 @@ def main(path='./'):
                     
                     volume_data.append(
                         {
-                            'Subject':sbj,
-                            'NerveSegment':nn,
-                            'Side':ss,
-                            'NumberVoxels':num_voxels,
-                            'Volume':volume,
-                            'DimX':dim_x,
-                            'DimY':dim_y,
-                            'DimZ':dim_z,
+                            'Subject': sbj,
+                            'NerveSegment': nn,
+                            'Side': ss,
+                            'NumberVoxels': num_voxels,
+                            'Volume': volume,
+                            'DimX': dim_x,
+                            'DimY': dim_y,
+                            'DimZ': dim_z,
                         }
                     )
                     
                 else:
-                    print(f"Warning: File {mask_file} does not exist.")
+                    logger.warning(f"Warning: File {mask_file} does not exist.")
     
     # Write volume data to CSV
     volume_data = pd.DataFrame(volume_data)
     volume_data.to_csv(os.path.join(out_path, out_file), sep=',', index=False)
-    print(f"Volume data written to {os.path.join(out_path, out_file)}")
+    logger.info(f"Volume data written to {os.path.join(out_path, out_file)}")
                 
 if __name__ == "__main__":
     main()

@@ -25,8 +25,8 @@ import os
 import nibabel as nib
 import numpy as np
 from nilearn import image
-import shutil
-from pathlib import Path
+import logging
+logger = logging.getLogger(__name__)
 
 NAME = "doatlas"
 
@@ -49,7 +49,7 @@ def main(path="./"):
     with open(sbj_list_path, 'r') as f:
         subjects = [line.strip() for line in f if line.strip()]
 
-    print(f"Total subjects: {len(subjects)}")
+    logger.debug(f"Total subjects: {len(subjects)}")
 
     # Function to create probability maps for a given anatomical region
     def create_probability_maps(subjects, region_name=None, region_value=None):
@@ -74,7 +74,7 @@ def main(path="./"):
         
         # Process each subject
         for sbj_idx, sbj in enumerate(subjects):
-            print(f"Processing subject {sbj} ({sbj_idx+1}/{len(subjects)})")
+            logger.info(f"Processing subject {sbj} ({sbj_idx+1}/{len(subjects)})")
             
             for side in ['r', 'l']:
                 # Prepare paths based on region
@@ -96,8 +96,8 @@ def main(path="./"):
                     # Use the binary mask
                     bin_img = nib.load(output_path + ".nii.gz")
                     
-                print(f"INFO: Binarized image created from {input_path}.nii.gz")
-                print(f"image shape: {bin_img.shape}")
+                logger.info(f"Binarized image created from {input_path}.nii.gz")
+                logger.debug(f"image shape: {bin_img.shape}")
                 # Add to running sum based on side
                 if side == 'r':
                     if r_map is None:
@@ -129,12 +129,12 @@ def main(path="./"):
 
     # Step 1: Create the main probability maps (whole ON)
     sbj_count = create_probability_maps(subjects)
-    print(f"Atlas created from {sbj_count} subjects. Now generating anatomical subdivision probability masks...")
+    logger.info(f"Atlas created from {sbj_count} subjects. Now generating anatomical subdivision probability masks...")
 
     # Create binary masks for each anatomical subdivision
     for sbj in subjects:
         sbj_dir = os.path.join(im_path, sbj)
-        print(f"Splitting {sbj} into anatomical subdivisions")
+        logger.info(f"Splitting {sbj} into anatomical subdivisions")
         
         # Process left and right
         for side in ['l', 'r']:
@@ -169,9 +169,9 @@ def main(path="./"):
 
     for region_name, region_value in regions.items():
         sbj_count = create_probability_maps(subjects, region_name, region_value)
-        print(f"{region_name} probability mask created from {sbj_count} subjects.")
+        logger.info(f"{region_name} probability mask created from {sbj_count} subjects.")
 
-    print("All probability maps have been created successfully.")
+    logger.info("All probability maps have been created successfully.")
 
 
 if __name__ == "__main__":

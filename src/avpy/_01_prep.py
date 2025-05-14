@@ -24,6 +24,8 @@ import numpy as np
 from nilearn import image
 from pathlib import Path
 import sentry_sdk
+import logging
+logger = logging.getLogger(__name__)
 
 NAME = "prep"
 
@@ -46,6 +48,7 @@ def apply_threshold(img_path, threshold_min, threshold_max, binary=True, multipl
     # Create new image
     new_img = nib.Nifti1Image(thresholded, img.affine, img.header)
     return new_img
+
 
 def main(path="./"):
     # Read study path
@@ -79,13 +82,13 @@ def main(path="./"):
         ii = os.path.join(in_path, sbj)
         oo = os.path.join(out_path, sbj)
         os.makedirs(oo, exist_ok=True)
-        print(f"{sbj} {ii}")
+        logger.debug(f"{sbj} {ii}")
         
         # Process ot files
         for xx in ['r', 'l']:
             ot_img = apply_threshold(os.path.join(ii, f"ot{xx}.nii.gz"), 10, 10, binary=True, multiplier=16)
             nib.save(ot_img, os.path.join(oo, f"ot_{xx}.nii.gz"))
-            print(f"{sbj} ont")
+            logger.debug(f"{sbj} ont")
         
         # Process onc files
         onc_r = apply_threshold(os.path.join(ii, "onc.nii.gz"), 8, 8, binary=True, multiplier=8)
@@ -93,7 +96,7 @@ def main(path="./"):
         
         onc_l = apply_threshold(os.path.join(ii, "onc.nii.gz"), 9, 9, binary=True, multiplier=8)
         nib.save(onc_l, os.path.join(oo, "oc_l.nii.gz"))
-        print(f"{sbj} onc")
+        logger.debug(f"{sbj} onc")
         
         # Process on files
         for xx in ['r', 'l']:
@@ -109,11 +112,8 @@ def main(path="./"):
             onincr = apply_threshold(os.path.join(ii, f"on{xx}.nii.gz"), 6, 6, binary=True, multiplier=4)
             nib.save(onincr, os.path.join(oo, f"onincr_{xx}.nii.gz"))
             
-            print(f"{sbj} oni {xx}")
-        
-        # List output files
-        print(os.listdir(oo))
-        
+            logger.debug(f"{sbj} oni {xx}")
+                
         # Combine files
         for xx in ['r', 'l']:
             # Load all component images
@@ -149,7 +149,7 @@ def main(path="./"):
             assert combined_data.max() <= 16
             combined_path = os.path.join(oo, f"on_{xx}.nii.gz")
             nib.save(combined_img, combined_path)
-            print(combined_path)
+            logger.info(f"Created {combined_path}")
 
 if __name__ == "__main__":
     main()

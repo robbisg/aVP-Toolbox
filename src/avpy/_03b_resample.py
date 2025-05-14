@@ -21,6 +21,8 @@ import numpy as np
 import nibabel as nib
 from pathlib import Path
 from nilearn.image import resample_img
+import logging
+logger = logging.getLogger(__name__)
 
 NAME = "resample"
 
@@ -41,9 +43,9 @@ def process_images(study_path, base_image):
             output_dir = os.path.dirname(input_file)
             output_file = os.path.join(output_dir, f"{input_basename}_iso06.nii.gz")
             
-            print(f"Processing: {input_file}")
-            print(f"Output basename: {input_basename}")
-            print(f"Output directory: {output_dir}")
+            logger.info(f"Processing: {input_file}")
+            logger.debug(f"Output basename: {input_basename}")
+            logger.debug(f"Output directory: {output_dir}")
             
             # Load the input image
             img = nib.load(input_file)
@@ -80,18 +82,18 @@ def process_images(study_path, base_image):
             
             # Save the resampled image
             nib.save(final_img, output_file)
-            print(f"Saved: {output_file}")
+            logger.info(f"Saved: {output_file}")
 
 def main(path="./"):
     # Read study path from ONcontrol.txt
     study_path = path
     
     # Process linearized images
-    print("Processing linearized images...")
+    logger.info("Processing linearized images...")
     process_images(study_path, "_linearize_4bc.nii.gz")
     
     # Process normalized images
-    print("Processing normalized images...")
+    logger.info("Processing normalized images...")
     process_images(study_path, "_normalized_4bc.nii.gz")
 
 if __name__ == "__main__":

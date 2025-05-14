@@ -20,6 +20,11 @@ def main():
     )
     
     logger = logging.getLogger(__name__)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+    logger.info("Starting aVP pipeline...")
 
     parser = argparse.ArgumentParser()
     parser.add_argument("config", nargs="?", default=None)
@@ -111,8 +116,8 @@ def main():
                 
         else:
             _06_stats.main(options.root_dir, 
-                            options.dataset_a, 
-                            options.dataset_b)
+                           options.dataset_a, 
+                           options.dataset_b)
     except Exception as e:
         sentry_sdk.capture_exception(e)
         print(e)
