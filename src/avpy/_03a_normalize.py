@@ -37,17 +37,12 @@ Produces:
 import os
 import numpy as np
 import nibabel as nib
-from scipy import ndimage
 import pandas as pd
-import pickle
-import subprocess
 from skimage import measure
 import sys
-import psutil
-import time
-import gc
-from datetime import datetime
 import sentry_sdk
+import logging
+logger = logging.getLogger(__name__)
 
 NAME = "normalize"
 
@@ -104,10 +99,10 @@ def main(path="./"):
         for side_idx, side in enumerate(sides):
             fname = os.path.join(inPath, subject, f'on_{side}')
             
-            print(f"INFO: Analyzing {subject} - on_{side}")
+            logger.info(f"Analyzing {subject} - on_{side}")
                     
             if not os.path.exists(f"{fname}.nii.gz"):
-                print(f"could not find: {fname}.nii.gz")
+                logger.error(f"could not find: {fname}.nii.gz")
                 sys.exit(1)
             
             # Load the nifti file
@@ -116,7 +111,7 @@ def main(path="./"):
             
             # Check if the image is empty
             if np.sum(nifti_data) == 0:
-                print(f"WARNING: Image {fname}.nii.gz is empty.")
+                logger.warning(f"Image {fname}.nii.gz is empty.")
                 continue
             
             # Get dimensions and resolutions
@@ -180,7 +175,7 @@ def main(path="./"):
                 props = measure.regionprops(labeled_image)
                 
                 if len(props) == 0:
-                    print(f"WARNING: No region found in slice {y}")
+                    logger.info(f"WARNING: No region found in slice {y}")
                     continue
                             
                 centroid = props[0].centroid
@@ -255,7 +250,7 @@ def main(path="./"):
                     slice_data['segment_name'] = segment_types[int(max_voxel_value)]
                 except Exception as e:
                     sentry_sdk.capture_exception(e)
-                    print(f"ERROR: {e}")
+                    logger.info(f"ERROR: {e}")
                     continue
                 
                 slice_data['max_voxel_value'] = max_voxel_value
@@ -298,14 +293,14 @@ def main(path="./"):
             dataframe.append(sliceframe)       
             
             # Build the linearized volume
-            print("INFO: Nerve Interpolation...")
+            logger.info("INFO: Nerve Interpolation...")
             
             upsampled_slices = sliceframe['slice_gap_upsampled'].values + resolution_increase
             total_slices_upsampled = upsampled_slices.sum() + 10
             
             if total_slices_upsampled >= max_slices:
-                print(f"ERROR: Total upsampled slices exceed {max_slices} in subject {subject} side {side}!")
-                print("Please increase the number of max_slices in the code.")
+                logger.error(f"ERROR: Total upsampled slices exceed {max_slices} in subject {subject} side {side}!")
+                logger.error("Please increase the number of max_slices in the code.")
                 sentry_sdk.capture_message(
                     f"ERROR: Total upsampled slices exceed {max_slices} in subject {subject} side {side}!"
                 )
@@ -352,13 +347,13 @@ def main(path="./"):
                 slice_counter += resolution_increase + 1
                 slice_counter_vector.append(slice_counter)
                         
-            print("INFO: Image creation...")
+            logger.info("Image creation...")
             
             # Fill hole - if neighboring slices not zero, copy in slice after
             hole_list = []
             hole_counter = 0
             
-            print("INFO: Hole filling...")
+            logger.info("Hole filling...")
             
             for slice_idx in range(1, max_slices-2):
                 if (np.max(hres_linear_image[:, slice_idx+1, :]) == 0 and
@@ -369,7 +364,7 @@ def main(path="./"):
                     hres_linear_image[:, slice_idx+1, :] = hres_linear_image[:, slice_idx+2, :]
                 
             # Create NIfTI image for linearized data
-            print("INFO: Disk writing...")
+            logger.info("Disk writing...")
             
             # Create header for the new image
             new_affine = nifti_img.affine.copy()
@@ -391,7 +386,7 @@ def main(path="./"):
             normalized_image = np.zeros_like(hres_linear_image)
             check_range = np.zeros(max_slices, dtype=int)
             
-            print("INFO: Normalization...")
+            logger.info("Normalization...")
             
             for ii in range(max_slices):
                 # Figure out slice in aligned that needs to go 
@@ -415,7 +410,7 @@ def main(path="./"):
             nib.save(norm_img, os.path.join(outImPath, subject, f"on{side}{Norm4image}"))
             
             
-    print("INFO: Processing complete!")
+    logger.info("Processing complete!")
 
     dataframe = pd.concat(dataframe)
     dataframe.to_excel(DataFile, index=False)

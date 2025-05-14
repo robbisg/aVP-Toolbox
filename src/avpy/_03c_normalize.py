@@ -1,16 +1,11 @@
 import os
 import numpy as np
 import nibabel as nib
-from scipy import ndimage
 import pandas as pd
-import pickle
-import subprocess
 from skimage import measure
-import sys
-import psutil
-import time
-import gc
-from datetime import datetime
+
+import logging
+logger = logging.getLogger(__name__)
 
 NAME = "normalize_stats"
 
@@ -56,10 +51,10 @@ def main(path="./"):
                 fname = os.path.join(inPath, bname)
                 
                 if not os.path.exists(f"{fname}.nii.gz"):
-                    print(f"Could not find: {fname}.nii.gz")
+                    logger.error(f"Could not find: {fname}.nii.gz")
                     continue
                     
-                print(f"INFO: Processing resampled {subject} - {image_type} - {side}")
+                logger.info(f"Processing resampled {subject} - {image_type} - {side}")
                     
                 # Load the nifti file
                 img = nib.load(f"{fname}.nii.gz")
@@ -155,7 +150,7 @@ def main(path="./"):
             
                 # Process the last slice if we had data
                 if current_slice_idx == 0:
-                    print(f'No ON elements found for {bname} - skipping')
+                    logger.info(f'No ON elements found for {bname} - skipping')
                     continue
                     
                 cc_value[current_slice_idx-1]['save_length'] = cc_value[current_slice_idx-1]['total_length']
@@ -165,17 +160,19 @@ def main(path="./"):
                 dataframe.append(sliceframe)
 
                 # Save the last segment info
-                segment_info.append(
-                    {
-                        'subject': subject,
-                        'side': side,
-                        'image_type': image_type,
-                        'segment_type': max_voxel_value,
-                        'segment_name': segment_types[max_voxel_value],
-                        'lenght': total_length,
-                        'area': sum_cross_section_area / number_of_areas
-                    }
-                )
+                if max_voxel_value != 0:
+                    segment_info.append(
+                        {
+                            'subject': subject,
+                            'side': side,
+                            'image_type': image_type,
+                            'segment_type': max_voxel_value,
+                            'segment_name': segment_types[max_voxel_value],
+                            'lenght': total_length,
+                            'area': sum_cross_section_area / number_of_areas
+                        }
+                    )
+                
     # Build dataframe
     dataframe = pd.concat(dataframe)
     dataframe.to_excel(

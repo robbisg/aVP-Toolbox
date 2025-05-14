@@ -6,7 +6,7 @@ import logging
 from avpy import _01_prep, _02_basics, _03a_normalize, \
     _03b_resample, _03c_normalize, _05_doatlas, _06_stats
 
-logger = logging.getLogger(__name__)
+
 
 
 def main():
@@ -18,6 +18,13 @@ def main():
         # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
         send_default_pii=True,
     )
+    
+    logger = logging.getLogger(__name__)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+    logger.info("Starting aVP pipeline...")
 
     parser = argparse.ArgumentParser()
     parser.add_argument("config", nargs="?", default=None)
@@ -103,8 +110,8 @@ def main():
                 
         else:
             _06_stats.main(options.root_dir, 
-                            options.dataset_a, 
-                            options.dataset_b)
+                           options.dataset_a, 
+                           options.dataset_b)
     except Exception as e:
         sentry_sdk.capture_exception(e)
         print(e)
