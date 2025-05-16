@@ -239,7 +239,7 @@ def main(path="./"):
                 sum_cross_section_area += area
                 
                 
-                    # Initialize dictionary for this slice
+                # Initialize dictionary for this slice
                 slice_data = dict()
                 slice_data['subject'] = subject
                 slice_data['side'] = side
@@ -353,7 +353,7 @@ def main(path="./"):
             hole_list = []
             hole_counter = 0
             
-            logger.info("Hole filling...")
+            logger.info("Hole interpolation...")
             
             for slice_idx in range(1, max_slices-2):
                 if (np.max(hres_linear_image[:, slice_idx+1, :]) == 0 and
