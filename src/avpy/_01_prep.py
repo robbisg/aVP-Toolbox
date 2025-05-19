@@ -67,7 +67,8 @@ def main(path="./"):
     for item in os.listdir(in_path):
         if os.path.isdir(os.path.join(in_path, item)):
             subjects.append(item)
-    
+            
+    subjects.sort()
     # Write subject list
     with open(sbj_list_path, 'w') as f:
         for sbj in subjects:
@@ -133,10 +134,7 @@ def main(path="./"):
                 overlap = np.logical_and(mask, img_data != 0)
                
                 if np.sum(overlap) > 0:
-                    print(f"Warning: Overlap detected in {img.get_filename()}")
-                    sentry_sdk.capture_message(
-                        f"Warning: Overlap detected in {img.get_filename()}"
-                    )
+                    logger.warning(f"Overlap detected in {img.get_filename()}")
 
                 combined_data += img_data
                 combined_data[overlap] -= img_data[overlap]
