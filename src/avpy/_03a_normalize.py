@@ -122,6 +122,7 @@ def main(path="./"):
             
             # Calculate the center of the slice to be able to shift the centroid of the ROI there
             image_center = np.array([x_dim/2, z_dim/2]) - 0.5
+            #image_center = np.array([255, 72]) * .5 - .5
             active_slice = -1
             segment_type = 0
             
