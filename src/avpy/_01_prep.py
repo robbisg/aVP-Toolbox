@@ -29,6 +29,10 @@ logger = logging.getLogger(__name__)
 
 NAME = "prep"
 
+
+    
+
+
 def apply_threshold(img_path, threshold_min, threshold_max, binary=True, multiplier=1):
     """Apply threshold to image and optionally binarize and multiply."""
     img = nib.load(img_path)
@@ -143,9 +147,28 @@ def main(path="./"):
             
             # Create combined image
             combined_img = nib.Nifti1Image(combined_data, ot.affine, ot.header)
+            combined_path = os.path.join(oo, f"on_{xx}.nii.gz")
+            target_shape = (256, 256, 72)
+            
+            if combined_data.shape != target_shape:
+                    
+                logger.warning(f"Resampling {combined_path}")
+                target_affine = img.affine * np.eye(4)
+                zooms = np.diag(target_affine)[:-1]
+                target_affine[0, 3] =  -74.4 * np.sign(zooms[0])
+                target_affine[1, 3] = -60.6 * np.sign(zooms[1])
+                target_affine[2, 3] =  -21. * np.sign(zooms[2])                      
+                
+                combined_img = image.resample_img(
+                    combined_img, 
+                    target_affine=target_affine, 
+                    target_shape=target_shape,
+                    interpolation='nearest'
+                )
+                            
 
             assert combined_data.max() <= 16
-            combined_path = os.path.join(oo, f"on_{xx}.nii.gz")
+            
             nib.save(combined_img, combined_path)
             logger.info(f"Created {combined_path}")
 
