@@ -20,6 +20,7 @@ import os
 import pandas as pd
 import numpy as np
 import nibabel as nib
+from nilearn import image
 import csv
 from pathlib import Path
 import sentry_sdk
@@ -75,12 +76,7 @@ def main(path='./'):
                     volume = num_voxels * voxel_size
                     
                     logger.debug(mask_file)
-                    logger.debug(f"{sbj} {nn} {ss} {num_voxels} {volume} {dim_x} {dim_y} {dim_z}")
-                    
-                    if (dim_x, dim_y, dim_z) != (256, 256, 72):
-                        sentry_sdk.capture_message(
-                            f"WARNING: {mask_file} has unexpected dimensions: {dim_x}, {dim_y}, {dim_z}"
-                        )
+                    logger.debug(f"{sbj} {nn} {ss} {num_voxels} {volume} {dim_x} {dim_y} {dim_z}")                    
                     
                     volume_data.append(
                         {
