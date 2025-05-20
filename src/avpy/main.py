@@ -10,6 +10,10 @@ from avpy import _01_prep, _02_basics, _03a_normalize, \
     _03b_resample, _03c_normalize, _05_doatlas, _06_stats
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
 
 # Define all available step modules with their names for better management
 STEP_MODULES = {
