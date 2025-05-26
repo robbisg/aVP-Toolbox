@@ -178,6 +178,13 @@ def main(path="./"):
                 if len(props) == 0:
                     logger.info(f"WARNING: No region found in slice {y}")
                     continue
+                
+                if len(props) > 1:
+                    logger.info(f"WARNING: Found {len(props)} region found in slice {y}, using the largest one.")
+                    # Use the largest region
+                    props = sorted(props, key=lambda p: p.area, reverse=True)[:1]
+                    # Remove smaller regions
+                    selected_y_slice[labeled_image != props[0].label] = 0
                             
                 centroid = props[0].centroid
                 orig_centroids = np.array(centroid)
