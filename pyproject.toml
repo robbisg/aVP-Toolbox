@@ -68,7 +68,7 @@ tests = [
 ]
 
 [project.scripts]
-avpy = "avpy.main:main"
+avp_all = "avpy.main:main"
 
 [project.urls]
 homepage = ""
