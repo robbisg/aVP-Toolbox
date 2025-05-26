@@ -32,7 +32,7 @@ NAME = "doatlas"
 
 
 # Function to create probability maps for a given anatomical region
-def create_probability_maps(path, subjects, region_name=None, region_value=None):
+def create_probability_maps(path, subjects, region_name=None, region_value=None, debug=False):
     """
     Create probability maps for the given region
     
@@ -58,6 +58,10 @@ def create_probability_maps(path, subjects, region_name=None, region_value=None)
     l_map = None
     
     # Process each subject
+    if debug:
+        l_side_map = []
+        r_side_map = []
+    
     for sbj_idx, sbj in enumerate(subjects):
         logger.info(f"Processing subject {sbj} ({sbj_idx+1}/{len(subjects)})")
         
@@ -74,26 +78,37 @@ def create_probability_maps(path, subjects, region_name=None, region_value=None)
                 output_path = os.path.join(im_path, sbj, f"{side}{suffix}")
                 
                 # Create binary mask for the specific region if not already done
-                if not os.path.exists(output_path + ".nii.gz"):
-                    threshold_img = image.math_img(f"(img == {region_value}.).astype(np.int8)", img=input_path)
-                    nib.save(threshold_img, output_path + ".nii.gz")
+                threshold_img = image.math_img(f"(img == {region_value}.).astype(np.int8)", img=input_path)
+                nib.save(threshold_img, output_path + ".nii.gz")
                 
                 # Use the binary mask
                 bin_img = nib.load(output_path + ".nii.gz")
                 
-            logger.info(f"Binarized image created from {input_path}.nii.gz")
+            logger.info(f"Binarized image created from {input_path}")
+            logger.debug(f"Processing {sbj}")
+            logger.debug(f"Image {bin_img.get_filename() if bin_img else input_path} for side {side}")
+            logger.debug(f"For region {region_name if region_name else 'whole ON'}")
             logger.debug(f"image shape: {bin_img.shape}")
+
             # Add to running sum based on side
             if side == 'r':
+                r_side_map.append(bin_img.get_fdata())
                 if r_map is None:
                     r_map = bin_img.get_fdata()
                 else:
                     r_map += bin_img.get_fdata()
             else:
+                l_side_map.append(bin_img.get_fdata())
                 if l_map is None:
                     l_map = bin_img.get_fdata()
                 else:
                     l_map += bin_img.get_fdata()
+                    
+            if debug:
+                if side == 'r':
+                    r_side_map.append(bin_img.get_fdata())
+                else:
+                    l_side_map.append(bin_img.get_fdata())
     
     # Save the sum maps
     affine = bin_img.affine
@@ -110,6 +125,12 @@ def create_probability_maps(path, subjects, region_name=None, region_value=None)
     nib.save(nib.Nifti1Image(l_prob, affine, header), os.path.join(templ_path, f"{output_prefix}_l.nii.gz"))
     nib.save(nib.Nifti1Image(combined_prob, affine, header), os.path.join(templ_path, f"{output_prefix}.nii.gz"))
     
+    if debug:
+        r_side_map = np.stack(r_side_map, axis=-1)
+        l_side_map = np.stack(l_side_map, axis=-1)
+        nib.save(nib.Nifti1Image(r_side_map, affine, header), os.path.join(templ_path, f"{output_prefix}_r_raw.nii.gz"))
+        nib.save(nib.Nifti1Image(l_side_map, affine, header), os.path.join(templ_path, f"{output_prefix}_l_raw.nii.gz"))
+    
     return len(subjects)
 
 
@@ -117,6 +138,15 @@ def create_probability_maps(path, subjects, region_name=None, region_value=None)
 def main(path="./"):
     # Read study path from ONcontrol.txt
     study_path = path
+    
+                # Define regions and their values
+    regions = {
+        'iOrb': 1,
+        'iCan': 2,
+        'iCran': 4,
+        'OC': 8,
+        'OT': 16
+    }
 
     # Set paths
     im_path = os.path.join(study_path, "data", "proc")
@@ -149,33 +179,18 @@ def main(path="./"):
             input_file = f"on{side}{norm_image_suffix}"
             input_path = os.path.join(sbj_dir, input_file)
             
-            # Define regions and their values
-            regions = {
-                'iOrb': 1,
-                'iCan': 2,
-                'iCran': 4,
-                'OC': 8,
-                'OT': 16
-            }
-            
             # Create binary mask for each region
             for region_name, region_value in regions.items():
                 output_path = os.path.join(sbj_dir, f"{side}_norm_iso06_{region_name}.nii.gz")
-                if not os.path.exists(output_path):
-                    # Create binary mask where voxels equal to region_value are set to 1
-                    threshold_img = image.math_img(f"(img == {region_value}.).astype(np.int8)", img=input_path)
-                    nib.save(threshold_img, output_path)
+                
+                # Create binary mask where voxels equal to region_value are set to 1
+                threshold_img = image.math_img(f"(img == {region_value}.).astype(np.int8)", img=input_path)
+                nib.save(threshold_img, output_path)
 
     # Step 2: Create probability maps for each anatomical subdivision
-    regions = {
-        'iOrb': 1,
-        'iCan': 2,
-        'iCran': 4,
-        'OC': 8,
-        'OT': 16
-    }
 
     for region_name, region_value in regions.items():
+        logger.debug(f"Creating probability map for {region_name}")
         sbj_count = create_probability_maps(study_path, subjects, region_name, region_value)
         logger.info(f"{region_name} probability mask created from {sbj_count} subjects.")
 
