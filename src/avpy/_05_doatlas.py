@@ -92,13 +92,13 @@ def create_probability_maps(path, subjects, region_name=None, region_value=None,
 
             # Add to running sum based on side
             if side == 'r':
-                r_side_map.append(bin_img.get_fdata())
+                #r_side_map.append(bin_img.get_fdata())
                 if r_map is None:
                     r_map = bin_img.get_fdata()
                 else:
                     r_map += bin_img.get_fdata()
             else:
-                l_side_map.append(bin_img.get_fdata())
+                #l_side_map.append(bin_img.get_fdata())
                 if l_map is None:
                     l_map = bin_img.get_fdata()
                 else:
