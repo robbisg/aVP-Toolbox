@@ -73,7 +73,11 @@ def main():
     )
 
     parser = argparse.ArgumentParser(description="aVP-toolbox: Analysis tools for optic nerve processing")
-    parser.add_argument("config", nargs="?", default=None)
+    parser.add_argument(
+        "--debug", 
+        action="store_true", 
+        dest="debug",
+        help="Enable debug mode for more verbose output.")
     parser.add_argument(
         "--root-dir",
         dest="root_dir",
@@ -125,6 +129,7 @@ def main():
     # Convert paths to Path objects for better handling
     root_dir = Path(options.root_dir)
     deriv_root = Path(options.deriv_root)
+    debug = options.debug
     
     # Parse the steps argument to determine which steps to run
     steps_to_run = parse_steps_argument(options.steps)
@@ -150,7 +155,8 @@ def main():
                 STEP_MODULES[step_name].main(
                     path=options.root_dir, 
                     dataset_a=options.dataset_a, 
-                    dataset_b=options.dataset_b
+                    dataset_b=options.dataset_b,
+                    debug=debug
                 )
             else:
                 # Standard processing steps
@@ -173,7 +179,7 @@ def main():
                     step_module.main(main_folder=root_dir, output_folder=deriv_root)
                 else:
                     # Legacy interface
-                    step_module.main(options.root_dir)
+                    step_module.main(options.root_dir, debug=debug)
                 
             # Log execution time
             elapsed = time.time() - start
