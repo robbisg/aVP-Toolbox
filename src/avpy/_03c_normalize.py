@@ -9,9 +9,12 @@ logger = logging.getLogger(__name__)
 
 NAME = "normalize_stats"
 
-def main(path="./"):
+def main(path="./", debug=False):
     # Get current working directory
     #curwd = os.getcwd()
+    
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
     
     segment_types = {
         16: "OT",

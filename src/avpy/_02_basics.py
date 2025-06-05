@@ -29,9 +29,12 @@ logger = logging.getLogger(__name__)
 
 NAME = "basics"
 
-def main(path='./'):
+def main(path='./', debug=False):
 
     study_path = path
+    
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
 
     # Set up paths
     in_path = f"{study_path}/data/proc"

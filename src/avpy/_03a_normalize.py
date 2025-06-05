@@ -46,10 +46,14 @@ logger = logging.getLogger(__name__)
 
 NAME = "normalize"
 
-def main(path="./"):
+def main(path="./", debug=False):
     # Get current working directory
     StudyPath = path
-        
+    
+    if debug:
+        logger.setLevel(logging.DEBUG)
+    
+    debug = False
     #StudyPath = "/home/robbis/git/aVP-toolbox/data/test/"
 
     inPath = os.path.join(StudyPath, 'data', 'proc')
@@ -92,6 +96,11 @@ def main(path="./"):
         2: "iCan",
         1: "iOrb"
     }
+    
+    if debug:
+        hres_l = []
+        hres_r = []
+    
 
     for subject in subject_list:
         isbj += 1
@@ -354,9 +363,7 @@ def main(path="./"):
                 
                 slice_counter += resolution_increase + 1
                 slice_counter_vector.append(slice_counter)
-                        
-            logger.info("Image creation...")
-            
+                                    
             # Fill hole - if neighboring slices not zero, copy in slice after
             hole_list = []
             hole_counter = 0
@@ -378,7 +385,13 @@ def main(path="./"):
             new_affine = nifti_img.affine.copy()
             # Adjust y-axis spacing
             new_affine[1, 1] = new_affine[1, 1] / resolution_increase
-            new_affine[:3, :3] = new_affine[:3, :3] * np.eye(3)            
+            new_affine[:3, :3] = new_affine[:3, :3] * np.eye(3)
+            
+            if debug:
+                if side == 'r':
+                    hres_r.append(hres_linear_image[:, :300, :])
+                else:
+                    hres_l.append(hres_linear_image[:, :300, :])    
             
             # Create a new image with the linearized data
             lin_img = nib.Nifti1Image(hres_linear_image, new_affine, nifti_img.header)
@@ -416,7 +429,19 @@ def main(path="./"):
             # Create and save normalized image
             norm_img = nib.Nifti1Image(normalized_image, new_affine, lin_img.header)
             nib.save(norm_img, os.path.join(outImPath, subject, f"on{side}{Norm4image}"))
-            
+    
+    if debug:
+        # Save the high-resolution images for debugging
+        hres_l = np.stack(hres_l, axis=-1)
+        hres_r = np.stack(hres_r, axis=-1)
+        
+        hres_l_img = nib.Nifti1Image(hres_l, new_affine)
+        hres_r_img = nib.Nifti1Image(hres_r, new_affine)
+        
+        nib.save(hres_l_img, os.path.join(outImPath, "upsampled_l" + Lin4image))
+        nib.save(hres_r_img, os.path.join(outImPath, "upsampled_r" + Lin4image))
+    
+    
             
     logger.info("Processing complete!")
 
