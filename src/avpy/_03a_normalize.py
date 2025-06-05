@@ -61,7 +61,7 @@ def main(path="./", debug=False):
     outResPath = os.path.join(StudyPath, 'results')
 
     # Output file paths
-    DataFile = os.path.join(outResPath, 'aVP_slice_data.xlsx')
+    DataFile = os.path.join(outResPath, 'CSA_slice.xlsx')
 
 
     # Define image output file names
@@ -255,7 +255,6 @@ def main(path="./", debug=False):
                 number_of_areas += 1
                 sum_cross_section_area += area
                 
-                
                 # Initialize dictionary for this slice
                 slice_data = dict()
                 slice_data['subject'] = subject
@@ -303,14 +302,15 @@ def main(path="./", debug=False):
             cc_value[active_slice]['average_area'] = sum_cross_section_area / number_of_areas
             
             sliceframe = pd.DataFrame(cc_value)
-            sliceframe.to_excel(
-                os.path.join(outImPath, subject, f"on{side}_slice_data.xlsx"), 
-                index=False, header=True
-            )
+            if debug:
+                sliceframe.to_excel(
+                    os.path.join(outImPath, subject, f"on{side}_slice_data.xlsx"), 
+                    index=False, header=True
+                )
             dataframe.append(sliceframe)       
             
             # Build the linearized volume
-            logger.info("INFO: Nerve Interpolation...")
+            logger.info("Nerve Interpolation...")
             
             upsampled_slices = sliceframe['slice_gap_upsampled'].values + resolution_increase
             total_slices_upsampled = upsampled_slices.sum() + 10
@@ -444,8 +444,16 @@ def main(path="./", debug=False):
     
             
     logger.info("Processing complete!")
-
+    
     dataframe = pd.concat(dataframe)
+    
+    if not debug:
+        # Remove unnecessary columns from the dataframe
+        to_be_dropped = ['distance', 'slice_gap', 'slice_gap_upsampled', 
+                        'length_on_upsampled', 'int_distance', 'int_upsampled_distance']
+        dataframe.drop(columns=to_be_dropped, 
+                       inplace=True)
+        
     dataframe.to_excel(DataFile, index=False)
 
                 

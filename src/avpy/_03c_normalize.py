@@ -33,8 +33,8 @@ def main(path="./", debug=False):
     outImPath = os.path.join(StudyPath, 'data', 'proc')
     outResPath = os.path.join(StudyPath, 'results')
 
-    ResampDataFile = os.path.join(outResPath, 'aVP_slice_data_iso.xlsx')
-    ResampStretchFile = os.path.join(outResPath, 'aVP_section_CSA_length_iso.xlsx')
+    ResampDataFile = os.path.join(outResPath, 'CSA_slice_iso.xlsx')
+    ResampStretchFile = os.path.join(outResPath, 'CSA_section_iso06.xlsx')
 
     sides = ['l', 'r']
 

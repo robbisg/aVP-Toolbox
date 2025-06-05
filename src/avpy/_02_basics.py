@@ -39,7 +39,7 @@ def main(path='./', debug=False):
     # Set up paths
     in_path = f"{study_path}/data/proc"
     out_path = f"{study_path}/results"
-    out_file = "volume_data.csv"
+    out_file = "raw_stats.xlsx"
 
     # Create output directory if it doesn't exist
     os.makedirs(out_path, exist_ok=True)
@@ -99,7 +99,7 @@ def main(path='./', debug=False):
     
     # Write volume data to CSV
     volume_data = pd.DataFrame(volume_data)
-    volume_data.to_csv(os.path.join(out_path, out_file), sep=',', index=False)
+    volume_data.to_excel(os.path.join(out_path, out_file), header=True, index=False)
     logger.info(f"Volume data written to {os.path.join(out_path, out_file)}")
                 
 if __name__ == "__main__":
