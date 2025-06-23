@@ -30,13 +30,13 @@ logger = logging.getLogger(__name__)
 NAME = "prep"
 
 
-    
-
-
 def apply_threshold(img_path, threshold_min, threshold_max, binary=True, multiplier=1):
     """Apply threshold to image and optionally binarize and multiply."""
     img = nib.load(img_path)
     data = img.get_fdata()
+    
+    data = np.round(data).astype(int)  # Ensure data is integer type
+    #logger.warning(f"Number of unique values in {img_path}: {np.unique(data, return_counts=True)}")
         
     # Apply threshold
     thresholded = np.logical_and(data >= threshold_min, data <= threshold_max).astype(int)
@@ -131,10 +131,12 @@ def main(path="./"):
             # Check overlap
             mask = ot.get_fdata() != 0
             combined_data = ot.get_fdata().copy()
+            logger.debug(f"Max value in ot data: {combined_data.max()} in {ot.get_filename()}")
             
             images = [onincr, oninca, oninor, oc]
             for img in images:
                 img_data = img.get_fdata()
+                logger.debug(f"Max value in {img.get_filename()} data: {img_data.max()}")
                 overlap = np.logical_and(mask, img_data != 0)
                
                 if np.sum(overlap) > 0:
@@ -146,8 +148,33 @@ def main(path="./"):
                 mask = np.logical_or(mask, img_data != 0)
             
             # Create combined image
-            combined_img = nib.Nifti1Image(combined_data, ot.affine, ot.header)
+            
+            # Check if the affine is identity matrix
+            if np.all(np.isclose(ot.affine, np.eye(4))):
+                logger.warning(f"Affine for {ot.get_filename()} is identity matrix, using custom affine.")
+                affine = [[-0.6, 0, 0, 74.4],
+                          [0, 0.6, 0, -60.6],
+                          [0, 0, 0.6, -21.],
+                          [0, 0, 0, 1]]
+                
+            # Check if there is no translation
+            elif np.all(np.isclose(ot.affine[:3, 3], 0)):
+                logger.warning(f"Affine for {ot.get_filename()} has no translation, using custom affine.")
+                affine = ot.affine.copy()
+                zooms = np.diag(affine)[:-1]
+                
+                affine[0, 3] = -74.4 * np.sign(zooms[0])
+                affine[1, 3] = -60.6 * np.sign(zooms[1])
+                affine[2, 3] = -21.0 * np.sign(zooms[2]) 
+
+            else:
+                affine = ot.affine
+            
+            
+            affine = np.array(affine, dtype=np.float32)
+            combined_img = nib.Nifti1Image(combined_data, affine, ot.header)
             combined_path = os.path.join(oo, f"on_{xx}.nii.gz")
+                                    
             target_shape = (256, 256, 72)
             
             if combined_data.shape != target_shape:
@@ -155,9 +182,10 @@ def main(path="./"):
                 logger.warning(f"Resampling {combined_path}")
                 target_affine = img.affine * np.eye(4)
                 zooms = np.diag(target_affine)[:-1]
-                target_affine[0, 3] =  -74.4 * np.sign(zooms[0])
+                
+                target_affine[0, 3] = -74.4 * np.sign(zooms[0])
                 target_affine[1, 3] = -60.6 * np.sign(zooms[1])
-                target_affine[2, 3] =  -21. * np.sign(zooms[2])                      
+                target_affine[2, 3] = -21.0 * np.sign(zooms[2])                      
                 
                 combined_img = image.resample_img(
                     combined_img, 
@@ -166,11 +194,14 @@ def main(path="./"):
                     interpolation='nearest'
                 )
                             
-
+            logger.debug(f"Max value in combined data: {combined_data.max()} in {combined_path}")
             assert combined_data.max() <= 16
             
             nib.save(combined_img, combined_path)
             logger.info(f"Created {combined_path}")
+            
+            
+            
 
 if __name__ == "__main__":
     main()
