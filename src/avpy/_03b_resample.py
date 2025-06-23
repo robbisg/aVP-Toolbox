@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 NAME = "resample"
 
-def process_images(study_path, base_image):
+def process_images(study_path, base_image, debug=True):
     """Process images for all subjects and hemispheres."""
     im_path = os.path.join(study_path, "data", "proc")
     anat = "on"
@@ -34,6 +34,10 @@ def process_images(study_path, base_image):
     # Read subject list
     with open(os.path.join(study_path, "data", "sbj.list"), 'r') as f:
         subjects = [line.strip() for line in f if line.strip()]
+        
+    if debug:
+        normalized_l = []
+        normalized_r = []
     
     for sbj in subjects:
         for ss in ['r', 'l']:
@@ -75,6 +79,12 @@ def process_images(study_path, base_image):
                 interpolation='nearest'
             )
             
+            if debug:
+                if ss == 'r':
+                    normalized_r.append(resampled_img.get_fdata())
+                else:
+                    normalized_l.append(resampled_img.get_fdata())
+            
             # Set the sform and qform properly
             final_img = nib.Nifti1Image(resampled_img.get_fdata(), target_affine)
             final_img.header['qform_code'] = 1
@@ -83,10 +93,25 @@ def process_images(study_path, base_image):
             # Save the resampled image
             nib.save(final_img, output_file)
             logger.info(f"Saved: {output_file}")
+    
+    if debug:
+        
+        normalized_l = np.stack(normalized_l, axis=-1)
+        normalized_r = np.stack(normalized_r, axis=-1)
+        
+        normalized_l_img = nib.Nifti1Image(normalized_l, resampled_img.affine)
+        normalized_r_img = nib.Nifti1Image(normalized_r, resampled_img.affine)
+        
+        nib.save(normalized_l_img, os.path.join(im_path, "total_l"+base_image))
+        nib.save(normalized_r_img, os.path.join(im_path, "total_r"+base_image))
+        
 
-def main(path="./"):
+def main(path="./", debug=False):
     # Read study path from ONcontrol.txt
     study_path = path
+    
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)    
     
     # Process linearized images
     logger.info("Processing linearized images...")

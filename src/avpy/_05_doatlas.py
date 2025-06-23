@@ -32,7 +32,7 @@ NAME = "doatlas"
 
 
 # Function to create probability maps for a given anatomical region
-def create_probability_maps(path, subjects, region_name=None, region_value=None, debug=False):
+def create_probability_maps(path, subjects, region_name=None, region_value=None, debug=True):
     """
     Create probability maps for the given region
     
@@ -84,7 +84,7 @@ def create_probability_maps(path, subjects, region_name=None, region_value=None,
                 # Use the binary mask
                 bin_img = nib.load(output_path + ".nii.gz")
                 
-            logger.info(f"Binarized image created from {input_path}")
+            logger.debug(f"Binarized image created from {input_path}")
             logger.debug(f"Processing {sbj}")
             logger.debug(f"Image {bin_img.get_filename() if bin_img else input_path} for side {side}")
             logger.debug(f"For region {region_name if region_name else 'whole ON'}")
@@ -135,11 +135,14 @@ def create_probability_maps(path, subjects, region_name=None, region_value=None,
 
 
 
-def main(path="./"):
+def main(path="./", debug=False):
     # Read study path from ONcontrol.txt
     study_path = path
     
-                # Define regions and their values
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
+    
+    # Define regions and their values
     regions = {
         'iOrb': 1,
         'iCan': 2,
@@ -166,7 +169,7 @@ def main(path="./"):
     logger.debug(f"Total subjects: {len(subjects)}")
 
     # Step 1: Create the main probability maps (whole ON)
-    sbj_count = create_probability_maps(study_path, subjects)
+    sbj_count = create_probability_maps(study_path, subjects, debug=debug)
     logger.info(f"Atlas created from {sbj_count} subjects. Now generating anatomical subdivision probability masks...")
 
     # Create binary masks for each anatomical subdivision
@@ -191,7 +194,7 @@ def main(path="./"):
 
     for region_name, region_value in regions.items():
         logger.debug(f"Creating probability map for {region_name}")
-        sbj_count = create_probability_maps(study_path, subjects, region_name, region_value)
+        sbj_count = create_probability_maps(study_path, subjects, region_name, region_value, debug=debug)
         logger.info(f"{region_name} probability mask created from {sbj_count} subjects.")
 
     logger.info("All probability maps have been created successfully.")
