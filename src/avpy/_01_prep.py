@@ -138,7 +138,8 @@ def main(path="./", debug=False):
                 overlap = np.logical_and(mask, img_data != 0)
                
                 if np.sum(overlap) > 0:
-                    logger.warning(f"Overlap detected in {img.get_filename()}")
+                    logger.warning(f"Overlap detected in {img.get_filename()} "+
+                                   "assuming highest value.")
 
                 combined_data += img_data
                 combined_data[overlap] -= img_data[overlap]
@@ -149,7 +150,16 @@ def main(path="./", debug=False):
             combined_img = nib.Nifti1Image(combined_data, ot.affine, ot.header)
             combined_path = os.path.join(oo, f"on_{xx}.nii.gz")
             target_shape = (256, 256, 72)
-                       
+            
+            # Check if the affine is not identity
+            if not np.all(np.isclose(combined_img.affine, np.eye(4))):
+                logger.warning(f"Affine is not identity for {combined_path}, resampling required.")
+                # Force a transformation matrix to the image
+                affine = np.eye(4)
+                affine[0, 3] = -74.4 * np.sign(combined_img.affine[0, 0])
+                affine[1, 3] = -60.6 * np.sign(combined_img.affine[1, 1])
+                affine[2, 3] = -21.0 * np.sign(combined_img.affine[2, 2])
+                combined_img = nib.Nifti1Image(combined_data, affine, combined_img.header)
             
             if combined_data.shape != target_shape:
                     
