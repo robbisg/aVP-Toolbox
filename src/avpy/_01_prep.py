@@ -30,9 +30,6 @@ logger = logging.getLogger(__name__)
 NAME = "prep"
 
 
-    
-
-
 def apply_threshold(img_path, threshold_min, threshold_max, binary=True, multiplier=1):
     """Apply threshold to image and optionally binarize and multiply."""
     img = nib.load(img_path)
