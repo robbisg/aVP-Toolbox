@@ -79,20 +79,28 @@ def main(path='./', debug=False):
                     volume = num_voxels * voxel_size
                     
                     logger.debug(mask_file)
-                    logger.debug(f"{sbj} {nn} {ss} {num_voxels} {volume} {dim_x} {dim_y} {dim_z}")                    
+                    logger.debug(f"{sbj} {nn} {ss} {num_voxels} {volume} {dim_x} {dim_y} {dim_z}")
                     
-                    volume_data.append(
-                        {
-                            'Subject': sbj,
-                            'NerveSegment': nn,
-                            'Side': ss,
-                            'NumberVoxels': num_voxels,
-                            'Volume': volume,
-                            'DimX': dim_x,
-                            'DimY': dim_y,
-                            'DimZ': dim_z,
-                        }
-                    )
+                    volume_dict = {
+                        'Subject': sbj,
+                        'NerveSegment': nn,
+                        'Side': ss,
+                        'NumberVoxels': num_voxels,
+                        'Volume': volume,
+                        'dim_x': dim_x,
+                        'dim_y': dim_y,
+                        'dim_z': dim_z,
+                    }
+                    
+                    if debug:
+                        volume_dict['res_x'] = img.affine[0, 0]
+                        volume_dict['res_y'] = img.affine[1, 1]
+                        volume_dict['res_z'] = img.affine[2, 2]
+                        volume_dict['tra_x'] = img.affine[0, 3]
+                        volume_dict['tra_y'] = img.affine[1, 3]
+                        volume_dict['tra_z'] = img.affine[2, 3]                  
+                    
+                    volume_data.append(volume_dict)
                     
                 else:
                     logger.warning(f"Warning: File {mask_file} does not exist.")
