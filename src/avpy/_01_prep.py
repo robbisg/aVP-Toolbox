@@ -35,6 +35,12 @@ def apply_threshold(img_path, threshold_min, threshold_max, binary=True, multipl
     img = nib.load(img_path)
     data = img.get_fdata()
     
+    # This forces the affine to be in the correct space
+    affine = img.affine
+    affine[0, 3] = -74.4 * np.sign(affine[0, 0])  # Adjust x translation
+    affine[1, 3] = -60.6 * np.sign(affine[1, 1])  # Adjust y translation
+    affine[2, 3] = -21.0 * np.sign(affine[2, 2])  # Adjust z translation
+    
     data = np.round(data).astype(int)  # Ensure data is integer type
     #logger.warning(f"Number of unique values in {img_path}: {np.unique(data, return_counts=True)}")
         
@@ -50,7 +56,7 @@ def apply_threshold(img_path, threshold_min, threshold_max, binary=True, multipl
         thresholded = thresholded * multiplier
     
     # Create new image
-    new_img = nib.Nifti1Image(thresholded, img.affine, img.header)
+    new_img = nib.Nifti1Image(thresholded, affine, img.header)
     return new_img
 
 
@@ -160,16 +166,7 @@ def main(path="./", debug=False):
                           [0, 0.6, 0, -60.6],
                           [0, 0, 0.6, -21.],
                           [0, 0, 0, 1]]
-                
-            # Check if there is no translation
-            elif np.all(np.isclose(ot.affine[:3, 3], 0)):
-                logger.warning(f"Affine for {ot.get_filename()} has no translation, using custom affine.")
-                affine = ot.affine.copy()
-                zooms = np.diag(affine)[:-1]
-                
-                affine[0, 3] = -74.4 * np.sign(zooms[0])
-                affine[1, 3] = -60.6 * np.sign(zooms[1])
-                affine[2, 3] = -21.0 * np.sign(zooms[2]) 
+
 
             else:
                 affine = ot.affine
@@ -181,15 +178,6 @@ def main(path="./", debug=False):
                                     
             target_shape = (256, 256, 72)
             
-            # Check if the affine is not identity
-            if not np.all(np.isclose(combined_img.affine, np.eye(4))):
-                logger.warning(f"Affine is not identity for {combined_path}, resampling required.")
-                # Force a transformation matrix to the image
-                affine = np.eye(4)
-                affine[0, 3] = -74.4 * np.sign(combined_img.affine[0, 0])
-                affine[1, 3] = -60.6 * np.sign(combined_img.affine[1, 1])
-                affine[2, 3] = -21.0 * np.sign(combined_img.affine[2, 2])
-                combined_img = nib.Nifti1Image(combined_data, affine, combined_img.header)
             
             if combined_data.shape != target_shape:
                     
