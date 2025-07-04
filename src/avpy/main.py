@@ -156,7 +156,7 @@ def main():
                     path=options.root_dir, 
                     dataset_a=options.dataset_a, 
                     dataset_b=options.dataset_b,
-                    debug=debug
+                    debug=True
                 )
             else:
                 # Standard processing steps

@@ -1,13 +1,2 @@
-*.nii.gz
-*.xlsx
-*.mat
-*.csv
-*.png
-*.jpg
-*.png
+data/*
 *.pyc
-*.html
-*.xlsx#
-.DS_Store
-*.list
-*.txt
