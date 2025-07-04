@@ -6,37 +6,32 @@ from sekupy.results import apply_function, filter_dataframe
 from scipy.stats import ttest_ind
 from matplotlib.ticker import FormatStrFormatter
 import matplotlib.pyplot as pl
+import pingouin as pg
+import os.path as op
 
-#path_map = "/media/robbis/DATA/fmri/optical_nerve/data/CISS_Manual_Segmentations_HC+PTS/maps/"
-
-#fname = "/media/robbis/DATA/fmri/optical_nerve/data/CISS_Manual_Segmentations_HC+PTS/{group}/results/aVP_slice_data_iso.xlsx"
-
-#map_name = "sub-group_feature-{feature}_group-{group}_side-{side}_on.nii.gz"
-
-#groups = ["HC", "PTS"]
-
-#info_columns = 4
-#rows_per_block = 11
-
-#full_dataframe = []
-
+parent_dir = op.dirname(op.dirname(op.dirname(op.abspath(__file__))))
+atlas_dir = op.join(parent_dir, "atlas")
+print(f"Parent directory: {parent_dir}")
 
 def create_nerve_map(dataframe, feature):
     
-    background_image = ni.load("/media/robbis/DATA/fmri/optical_nerve/toolbox/atlas/aVP-24_prob100.nii")
+    background_image = ni.load(op.join(atlas_dir, "aVP-24_prob100.nii"))
     atlas = background_image.get_fdata()
+    n_slices = atlas.shape[1]
     
-    nerve_map = np.zeros((atlas.shape[0], atlas.shape[1], atlas.shape[2]))
+    nerve_map = np.zeros((atlas.shape[0],
+                          atlas.shape[1], 
+                          atlas.shape[2]))
     
     for y in range(n_slices):
-        nerve_map[:, y, :][atlas_data[:, y, :] != 0] = dataframe[feature].values[y]
+        nerve_map[:, y, :][atlas[:, y, :] != 0] = dataframe[feature].values[y]
         
     return nerve_map
 
 
 
 def plot_nerve(nerve_map, 
-               threshold, 
+               threshold,
                comparison='equal', 
                colormap=pl.cm.magma,
                title="Nerve Map",
@@ -44,7 +39,7 @@ def plot_nerve(nerve_map,
                figsize=(7, 18)
                ):
     
-    background_image = ni.load("/media/robbis/DATA/fmri/optical_nerve/toolbox/atlas/aVP-24_prob100.nii")
+    background_image = ni.load(op.join(atlas_dir, "aVP-24_prob100.nii"))
     background_data = background_image.get_fdata()
     resolution = background_image.header['pixdim'][1]
     x_dim = background_data.shape[0]
@@ -57,13 +52,14 @@ def plot_nerve(nerve_map,
               aspect='equal')
 
     
-    if comparison == 'equal':
-        fx_comparison = np.equal
-    elif comparison == 'greater':
-        fx_comparison = np.less
-    elif comparison == 'less':
-        fx_comparison = np.greater
-        
+    fx_comparison_dict = {
+        'equal': np.equal,
+        'greater': np.less,
+        'less': np.greater
+    }
+    
+    fx_comparison = fx_comparison_dict.get(comparison, np.equal)       
+    
     if vlim is not None:
         vmin, vmax = vlim
     else:
@@ -112,213 +108,173 @@ def plot_nerve(nerve_map,
 
 
 def main(path="./", dataset_a="HC", dataset_b="PTS"):
+    
+    do_figures = False
+    dataframe = []
 
-    path_map = os.path.join(path, "maps")
-    results_fname = os.path.join(path, "{group}", "results", "aVP_slice_data_iso.xlsx")
+    # TODO: turn this into parameters
+    features = ['Eccent', 'CSArea']
+    sides = ['r', 'l']
+    image_type = 'normalized'
+    
+    path_map = op.join(path, "maps")
+    results_fname = op.join(path, "{group}", "results", "aVP_slice_data_iso.xlsx")
     map_name = "sub-group_feature-{feature}_group-{group}_side-{side}_on.nii.gz"
+    
+    atlas = ni.load(op.join("aVP-24_label.nii"))
+    atlas_data = atlas.get_fdata()
+    x_dim, y_dim, z_dim = atlas_data.shape
+    n_slices = atlas.shape[1]
+    
+    p_value = 0.05
+    bonferroni_value = p_value / n_slices
 
     groups = [dataset_a, dataset_b]
 
+    # Read data for each group
     for group in groups:
+        df = pd.read_excel(results_fname.format(group=group))
+        df['group'] = [group] * df.shape[0]
         
-        df = pd.read_excel(results_fname.format(group=group), header=None)
+        dataframe.append(df)
+    
+    full_dataframe = pd.concat(dataframe, ignore_index=True)
+
+    
+    for feature in features:
+        for side in sides:
+            for group in groups:
             
-        n_rows = df.shape[0]
-        
-        n_blocks = n_rows // rows_per_block
-        
-        dataframe = []
-        
-        for i in range(n_blocks):
-            start = i * rows_per_block
-            end = (i + 1) * rows_per_block
-            block = df.iloc[start:end]
-            
-            column_names = block.iloc[:, 4].values
-            data_values = block.iloc[:, 5:].dropna(axis=1).values.T
-            
-            print(data_values.shape)
-            print(block.iloc[0, :4])
-            
-            data_frames = pd.DataFrame(data_values, columns=column_names)
-            data_frames['subject_id'] = [block.iloc[0, 0]] * len(data_values)
-            data_frames['type'] = [block.iloc[0, 1]] * len(data_values)
-            data_frames['image_name'] = [block.iloc[0, 2]] * len(data_values)
-            data_frames['side'] = [block.iloc[0, 3]] * len(data_values)
-            data_frames['group'] = [group] * len(data_values)
-                    
-            dataframe.append(data_frames)    
-
-        dataframe = pd.concat(dataframe)
-
-        full_dataframe.append(dataframe)
-        
-    full_dataframe = pd.concat(full_dataframe)
-
-    ###################################################################################
-    # Analysis
-
-
-    n_slices = 102
-    image_type = 'normalized'
-    atlas = ni.load("/media/robbis/DATA/fmri/optical_nerve/toolbox/atlas/aVP-24_label.nii")
-    atlas_data = atlas.get_fdata()
-
-
-    # 1) Maps of features for each group
-
-    for side in ['r', 'l']:
-        for group in groups:
-            for feature in ['Eccent', 'CSArea']:
-            
-                df = filter_dataframe(full_dataframe, group=[group], side=[side], type=[image_type])        
-                df = apply_function(df, keys=['orig_sli_yz'], attr=feature, fx=lambda x: x.mean(0))
+                df = filter_dataframe(full_dataframe, 
+                                      group=[group], 
+                                      side=[side], 
+                                      type=[image_type])        
+                df = apply_function(df, keys=['original_slice_yz'], 
+                                    attr=feature, fx=lambda x: x.mean(0))
                 
-                nerve_map = np.zeros((atlas.shape[0], atlas.shape[1], atlas.shape[2]))
+                nerve_map = create_nerve_map(df, feature)
                 
-                for y in range(n_slices):
-                    nerve_map[:, y, :][atlas_data[:, y, :] != 0] = df[feature].values[y]
-                    
-                ni.save(ni.Nifti1Image(nerve_map, atlas.affine), os.path.join(path_map, 
-                                                                            map_name.format(group=group, 
-                                                                                            side=side, 
-                                                                                            feature=feature)))
+                map_fname = map_name.format(group=group,
+                                            side=side, 
+                                            feature=feature)
                 
-                pl.figure()
-                pl.imshow(nerve_map[:,:,35], cmap=pl.cm.magma)
-                pl.title(f"Group: {group} - Side: {side} - Feature: {feature}")
-                pl.colorbar()
+                nerve_image = ni.Nifti1Image(nerve_map, atlas.affine)
+                ni.save(nerve_image, op.join(path_map, map_fname))  
+                
+                if do_figures:
+                    pl.figure()
+                    pl.imshow(nerve_map[:,:,35], cmap=pl.cm.magma)
+                    pl.title(f"Group: {group} - Side: {side} - Feature: {feature}")
+                    pl.colorbar()
                     
                 
     ###################################################################################
     # 3) Tests
 
-    bonferroni_value = 0.05 / n_slices
 
-    for side in ['r', 'l']:
-        for feature in ['Eccent', 'CSArea']:
+    for feature in features:
+        for side in sides:
                     
-            df = filter_dataframe(full_dataframe, side=[side], type=[image_type])        
-            #df = apply_function(df, keys=['orig_sli_yz'], attr=feature, fx=lambda x: x.mean(0))
+            df = filter_dataframe(full_dataframe, 
+                                  side=[side], 
+                                  type=[image_type])        
             
             nerve_map_t = np.zeros((atlas.shape[0], atlas.shape[1], atlas.shape[2]))
             nerve_map_p = np.zeros((atlas.shape[0], atlas.shape[1], atlas.shape[2]))
             
             for y in range(n_slices):
                 
-                df_slice_patients = filter_dataframe(df, curr_sli_yz=[y+1], group=['PTS'])
-                df_slice_healthy =  filter_dataframe(df, curr_sli_yz=[y+1], group=['HC'])
+                df_slice_a = filter_dataframe(df, curr_sli_yz=[y+1], group=[dataset_a])
+                df_slice_b = filter_dataframe(df, curr_sli_yz=[y+1], group=[dataset_b])
                 
-                t, p = ttest_ind(df_slice_healthy[feature].values, 
-                                 df_slice_patients[feature].values)
+                t, p = ttest_ind(df_slice_a[feature].values, 
+                                 df_slice_b[feature].values)
                 
                 nerve_map_t[:, y, :][atlas_data[:, y, :] != 0] = t
                 nerve_map_p[:, y, :][atlas_data[:, y, :] != 0] = p
                 
                 threshold_image = nerve_map_t * (nerve_map_p < bonferroni_value)
                 
-                
-            ni.save(ni.Nifti1Image(nerve_map_t, atlas.affine), 
-                    os.path.join(path_map, map_name.format(group='t',
-                                                        side=side,
-                                                        feature=feature)))
             
-            ni.save(ni.Nifti1Image(nerve_map_p, atlas.affine), 
-                    os.path.join(path_map, map_name.format(group='p', 
-                                                        side=side, 
-                                                        feature=feature)))
+            map_fname = map_name.format(group='t',
+                                        side=side, 
+                                        feature=feature)
+            nerve_image = ni.Nifti1Image(nerve_map_t, atlas.affine)
+            ni.save(nerve_image, op.join(path_map, map_fname))
             
-            pl.figure()
-            pl.imshow(threshold_image[:, :, 35], cmap=pl.cm.coolwarm, vmin=-5, vmax=5)
-            pl.title(f"Side: {side} - Feature: {feature}")
-            pl.colorbar()
+            map_fname = map_name.format(group='p',
+                                        side=side, 
+                                        feature=feature)
+            nerve_image = ni.Nifti1Image(nerve_map_p, atlas.affine)
+            ni.save(nerve_image, op.join(path_map, map_fname))
             
-
-    ###################################################################################
-    # 1) Verify that left and right are not different
-
-    for feature in ['Eccent', 'CSArea']:
-        for group in groups:
-            df = filter_dataframe(full_dataframe, group=[group], type=[image_type])        
-            #df = apply_function(df, keys=['orig_sli_yz'], attr=feature, fx=lambda x: x.mean(0))
-            
-            p_values = []
-            
-            for y in range(n_slices):
+            if do_figures:
+                pl.figure()
+                pl.imshow(threshold_image[:, :, 35], cmap=pl.cm.coolwarm, vmin=-5, vmax=5)
+                pl.title(f"Side: {side} - Feature: {feature}")
+                pl.colorbar()
                 
-                df_left = filter_dataframe(df, side=['l'], curr_sli_yz=[y+1])
-                df_right = filter_dataframe(df, side=['r'], curr_sli_yz=[y+1])
-                
-                t, p = ttest_ind(df_left[feature].values, df_right[feature].values)
-                
-                p_values.append(p)
-                
-                if p < bonferroni_value:
-                    print(f"Group: {group} - Feature: {feature} - Slice: {y} - T: {t} - P: {p}")
-                
-            pg.multicomp(p_values, method='fdr_bh')
-
 
     ###################################################################################
     # 2) Plot different values
 
     colormaps = [pl.cm.viridis, pl.cm.turbo]
-    limits = [(0.4, 1), 
-            (5, 19)]
+    limits = [(0.4, 1), (5, 19)]
 
 
-    for f, feature in enumerate(['Eccent', 'CSArea']):
+    for f, feature in enumerate(features):
         for group in groups:
-            df = filter_dataframe(full_dataframe, group=[group], side=[side], type=[image_type])        
+            df = filter_dataframe(full_dataframe, 
+                                  group=[group], 
+                                  side=[side], 
+                                  type=[image_type])        
             df = apply_function(df, 
-                                keys=['orig_sli_yz', 'subject_id'], 
+                                keys=['original_slice_yz', 'subject_id'], 
                                 attr=feature, 
                                 fx=lambda x: x.mean(0))
             
             df = apply_function(df,
-                                keys=['orig_sli_yz'],
+                                keys=['original_slice_yz'],
                                 attr=feature,
                                 fx=lambda x: x.mean(0))
             
             
-            nerve_map = np.zeros((atlas.shape[0], atlas.shape[1], atlas.shape[2]))
-                
-            for y in range(n_slices):
-                nerve_map[:, y, :][atlas_data[:, y, :] != 0] = df[feature].values[y]
-
-            fig, ax = plot_nerve(nerve_map,
-                                threshold=0,
-                                comparison='equal',
-                                colormap=colormaps[f],
-                                title=f"{feature} map in {group}",
-                                vlim=limits[f])
+            nerve_map = create_nerve_map(df, feature)
             
-            fig.savefig(os.path.join(path_map, 
-                                    f"sub-group_feature-{feature}_group-{group}_side-both_on.png"))
+            if do_figures:
+                fig, ax = plot_nerve(nerve_map,
+                                     threshold=0,
+                                     comparison='equal',
+                                     colormap=colormaps[f],
+                                     title=f"{feature} map in {group}",
+                                     vlim=limits[f])
+            
+                fig.savefig(
+                    op.join(path_map, 
+                            f"sub-group_feature-{feature}_group-{group}_side-both_on.png")
+                    )
 
     ###################################################################################
     # 2.1) Generate xls file
-
-
     lap = 0
-    for feature in ['Eccent', 'CSArea']:
-        for group in groups:
-            
-            
-            df = filter_dataframe(full_dataframe, group=[group], side=[side], type=[image_type])        
+    for feature in features:
+        for group in groups:            
+            df = filter_dataframe(full_dataframe, 
+                                  group=[group], 
+                                  side=[side], 
+                                  type=[image_type])        
             df_mean = apply_function(df, 
-                                keys=['orig_sli_yz'], 
+                                keys=['original_slice_yz'], 
                                 attr=feature, 
                                 fx=lambda x: x.mean(0))
             df_std = apply_function(df,
-                                keys=['orig_sli_yz'],
+                                keys=['original_slice_yz'],
                                 attr=feature,
                                 fx=lambda x: x.std(0))
             
             
             if lap == 0:
                 dfs = df_mean.copy()
-                #dfs.rename(columns={feature: f"{feature}_mean_{group}"}, inplace=True)
             
             lap += 1
             
@@ -326,19 +282,15 @@ def main(path="./", dataset_a="HC", dataset_b="PTS"):
             dfs[f"{feature}_std_{group}"] = df_std[feature].values
             
             
-    dfs.to_excel(os.path.join(path_map, "group_features.xlsx"))
-
-
-
 
     ###################################################################################
     # 3) Plot different values
 
-    bonferroni_value = 0.05 / n_slices
+
     extension_fig = 'png'
 
 
-    for feature in ['Eccent', 'CSArea']:
+    for feature in features:
                 
         df = filter_dataframe(full_dataframe, type=[image_type])        
         df = apply_function(df, 
@@ -354,11 +306,11 @@ def main(path="./", dataset_a="HC", dataset_b="PTS"):
         
         for y in range(n_slices):
             
-            df_slice_patients = filter_dataframe(df, curr_sli_yz=[y+1], group=['PTS'])
-            df_slice_healthy =  filter_dataframe(df, curr_sli_yz=[y+1], group=['HC'])
+            df_slice_a = filter_dataframe(df, curr_sli_yz=[y+1], group=[dataset_a])
+            df_slice_b = filter_dataframe(df, curr_sli_yz=[y+1], group=[dataset_b])
             
-            t, p = ttest_ind(df_slice_healthy[feature].values, 
-                            df_slice_patients[feature].values)
+            t, p = ttest_ind(df_slice_a[feature].values, 
+                             df_slice_b[feature].values)
             
             nerve_map_t[:, y, :][atlas_data[:, y, :] != 0] = t
             nerve_map_p[:, y, :][atlas_data[:, y, :] != 0] = p
@@ -368,45 +320,45 @@ def main(path="./", dataset_a="HC", dataset_b="PTS"):
             
         dfs[f"{feature}_t"] = ts
         dfs[f"{feature}_p"] = ps
-            
-            #threshold_image = nerve_map_t * (nerve_map_p < bonferroni_value)
-        
+                    
         mask_p, p_fdr = pg.multicomp(nerve_map_p, method='fdr_bh')
         threshold_image = nerve_map_t * mask_p
         
-        fig, ax = plot_nerve(threshold_image, 
-                            threshold=0, 
-                            comparison='equal', 
-                            colormap=pl.cm.coolwarm,
-                            title=f"FDR-corrected {feature} map in HC vs PTS",
-                            vlim=(-5, 5))
-        
-        fig.savefig(os.path.join(path_map, 
-                                f"sub-group_feature-{feature}_stats-ttestfdr_side-both_on.png"))
-        
-        
-        fig, ax = plot_nerve(nerve_map_t,
-                            threshold=0.,
-                            comparison='equal',
-                            colormap=pl.cm.coolwarm,
-                            title=f"Unthresholded {feature} map in HC vs PTS",
-                            vlim=(-5, 5))
+        if do_figures:
+            fig, ax = plot_nerve(threshold_image, 
+                                threshold=0, 
+                                comparison='equal', 
+                                colormap=pl.cm.coolwarm,
+                                title=f"FDR-corrected {feature} map in {dataset_a} vs {dataset_b}",
+                                vlim=(-5, 5))
+            
+            fig.savefig(op.join(path_map, 
+                                    f"sub-group_feature-{feature}_stats-ttestfdr_side-both_on.png"))
+            
+            
+            fig, ax = plot_nerve(nerve_map_t,
+                                threshold=0.,
+                                comparison='equal',
+                                colormap=pl.cm.coolwarm,
+                                title=f"Unthresholded {feature} map in {dataset_a} vs {dataset_b}",
+                                vlim=(-5, 5))
 
-        fig.savefig(os.path.join(path_map, 
-                                f"sub-group_feature-{feature}_stats-ttestuncorrected_side-both_on.png"))        
-        
-        
+            fig.savefig(op.join(path_map, 
+                                    f"sub-group_feature-{feature}_stats-ttestuncorrected_side-both_on.png"))        
+            
+            
 
-        fig, ax = plot_nerve(nerve_map_t * (nerve_map_p < bonferroni_value),
-                            threshold=0.,
-                            comparison='equal',
-                            colormap=pl.cm.coolwarm,
-                            title=f"Bonferroni-corrected {feature} map in HC vs PTS",
-                            vlim=(-5, 5))
+            fig, ax = plot_nerve(nerve_map_t * (nerve_map_p < bonferroni_value),
+                                threshold=0.,
+                                comparison='equal',
+                                colormap=pl.cm.coolwarm,
+                                title=f"Bonferroni-corrected {feature} map in {dataset_a} vs {dataset_b}",
+                                vlim=(-5, 5))
+            
+            fig.savefig(op.join(path_map,
+                                    f"sub-group_feature-{feature}_stats-ttestbonferroni_side-both_on.png"))
         
-        fig.savefig(os.path.join(path_map,
-                                f"sub-group_feature-{feature}_stats-ttestbonferroni_side-both_on.png"))
-    
-    
+    dfs.to_excel(op.join(path_map, "aVP_feature_stats.xlsx"))
+
 if __name__ == '__main__':
     main()
