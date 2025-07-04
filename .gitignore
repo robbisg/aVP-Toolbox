@@ -1,0 +1,13 @@
+*.nii.gz
+*.xlsx
+*.mat
+*.csv
+*.png
+*.jpg
+*.png
+*.pyc
+*.html
+*.xlsx#
+.DS_Store
+*.list
+*.txt
