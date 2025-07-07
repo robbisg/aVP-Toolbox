@@ -101,6 +101,7 @@ def main(path="./", debug=False):
         hres_l = []
         hres_r = []
     
+    total_subject_dataframe = []
 
     for subject in subject_list:
         isbj += 1
@@ -133,16 +134,13 @@ def main(path="./", debug=False):
             image_center = np.array([x_dim/2, z_dim/2]) - 0.5
             #image_center = np.array([255, 72]) * .5 - .5
             active_slice = -1
-            segment_type = 0
-            
-            table = []
+                     
             current_max_value = 0
             cc_value = []
             
-            interpolation_data = []
-            
             length_optical_nerve = 0
             length_optical_nerve_gap = 0
+            total_area = 0
             partial_distance = 0
             factor = 1
 
@@ -170,7 +168,7 @@ def main(path="./", debug=False):
                     if current_max_value != max_voxel_value:
                         current_max_value = max_voxel_value
                         
-                        cc_value[previous_slice]['save_length'] = partial_distance
+                        cc_value[previous_slice]['partial_length'] = partial_distance
                         cc_value[previous_slice]['average_area'] = sum_cross_section_area / number_of_areas
                         
                         number_of_areas = 0
@@ -254,6 +252,7 @@ def main(path="./", debug=False):
                 area = props[0].area * x_resolution * z_resolution
                 number_of_areas += 1
                 sum_cross_section_area += area
+                total_area += area
                 
                 # Initialize dictionary for this slice
                 slice_data = dict()
@@ -283,7 +282,8 @@ def main(path="./", debug=False):
                 slice_data['eccent']  = props[0].eccentricity
                 
                 slice_data['average_area'] = 0
-                slice_data['save_length'] = 0
+                slice_data['partial_length'] = 0
+                slice_data['total_length'] = 0
                 
                 slice_data['distance'] = distance
                 slice_data['slice_gap'] = slice_gap
@@ -294,12 +294,21 @@ def main(path="./", debug=False):
                 slice_data['int_upsampled_distance'] = n_slices_upsampled
                 
                 cc_value.append(slice_data)
-
-
                 
             # Save processed info
-            cc_value[active_slice]['save_length'] = partial_distance
+            cc_value[active_slice]['partial_length'] = partial_distance
             cc_value[active_slice]['average_area'] = sum_cross_section_area / number_of_areas
+            cc_value[active_slice]['total_length'] = length_optical_nerve
+            cc_value[active_slice]['total_area'] = total_area / y_dim
+            
+            total_subject_results = {
+                'subject': subject,
+                'side': side,
+                'length_on': length_optical_nerve,
+                'total_area': total_area / y_dim,
+            }
+            
+            total_subject_dataframe.append(total_subject_results)            
             
             sliceframe = pd.DataFrame(cc_value)
             if debug:
@@ -440,9 +449,7 @@ def main(path="./", debug=False):
         
         nib.save(hres_l_img, os.path.join(outImPath, "upsampled_l" + Lin4image))
         nib.save(hres_r_img, os.path.join(outImPath, "upsampled_r" + Lin4image))
-    
-    
-            
+                
     logger.info("Processing complete!")
     
     dataframe = pd.concat(dataframe)
@@ -455,6 +462,11 @@ def main(path="./", debug=False):
                        inplace=True)
         
     dataframe.to_excel(DataFile, index=False)
+    
+    total_subject_dataframe = pd.DataFrame(total_subject_dataframe)
+    total_subject_dataframe.to_excel(
+        os.path.join(outResPath, 'summary_results.xlsx'),
+        index=False, header=True)
 
                 
 if __name__ == "__main__":
