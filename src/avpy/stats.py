@@ -7,15 +7,18 @@ from scipy.stats import ttest_ind
 from matplotlib.ticker import FormatStrFormatter
 import matplotlib.pyplot as pl
 import pingouin as pg
+import argparse
 import os.path as op
 
 parent_dir = op.dirname(op.dirname(op.dirname(op.abspath(__file__))))
 atlas_dir = op.join(parent_dir, "atlas")
+atlas_name = "aVP-24_label.nii.gz"
+print(f"Atlas directory: {atlas_dir}")
 print(f"Parent directory: {parent_dir}")
 
 def create_nerve_map(dataframe, feature):
     
-    background_image = ni.load(op.join(atlas_dir, "aVP-24_prob100.nii"))
+    background_image = ni.load(op.join(atlas_dir, atlas_name))
     atlas = background_image.get_fdata()
     n_slices = atlas.shape[1]
     
@@ -39,7 +42,7 @@ def plot_nerve(nerve_map,
                figsize=(7, 18)
                ):
     
-    background_image = ni.load(op.join(atlas_dir, "aVP-24_prob100.nii"))
+    background_image = ni.load(op.join(atlas_dir, atlas_name))
     background_data = background_image.get_fdata()
     resolution = background_image.header['pixdim'][1]
     x_dim = background_data.shape[0]
@@ -107,7 +110,22 @@ def plot_nerve(nerve_map,
     return fig, ax
 
 
-def main(path="./", dataset_a="HC", dataset_b="PTS"):
+def main(path="./", dataset_a="HC", dataset_b="PTS", variable="Eccent"):
+    
+    
+    parser = argparse.ArgumentParser(description="Process nerve map generation and statistical analysis.")
+    parser.add_argument("--feature", type=str, default="Eccent", help="Feature to analyze (e.g., Eccent, CSArea).")
+    parser.add_argument("--p_value", type=float, default=0.05, help="P-value threshold for statistical tests.")
+    parser.add_argument("--correction", type=str, choices=["bonferroni", "fdr"], default="bonferroni", help="Correction method for multiple comparisons.")
+    parser.add_argument("--image_type", type=str, default="normalized", help="Type of image data to process (e.g., normalized, raw).")
+    
+    args = parser.parse_args()
+
+    # Update variables with arguments
+    variable = args.feature
+    p_value = args.p_value
+    correction_method = args.correction
+    image_type = args.image_type
     
     do_figures = False
     dataframe = []
