@@ -193,7 +193,8 @@ def main(path="./", debug=False):
                     combined_img, 
                     target_affine=target_affine, 
                     target_shape=target_shape,
-                    interpolation='nearest'
+                    interpolation='nearest',
+                    force_resample=False,
                 )
                             
             logger.debug(f"Max value in combined data: {combined_data.max()} in {combined_path}")

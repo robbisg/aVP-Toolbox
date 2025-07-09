@@ -76,7 +76,8 @@ def process_images(study_path, base_image, debug=True):
                 modified_img,
                 target_shape=(250, 102, 72),
                 target_affine=target_affine,
-                interpolation='nearest'
+                interpolation='nearest',
+                force_resample=False
             )
             
             if debug:
