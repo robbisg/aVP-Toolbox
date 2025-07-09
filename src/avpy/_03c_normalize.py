@@ -45,6 +45,7 @@ def main(path="./", debug=False):
     image_types = ['linearize', 'normalized']
     segment_info = []
     dataframe = []
+    summary_stats = []
 
     for subject in subject_list:        
         for side_idx, side in enumerate(sides):
@@ -145,7 +146,8 @@ def main(path="./", debug=False):
                         'eccent': props[0].eccentricity,
                         'total_length': total_length,
                         'save_length': 0,
-                        'average_area': 0
+                        'average_area': 0,
+                        'length_on': 0,
                     }
                     
                         
@@ -156,9 +158,22 @@ def main(path="./", debug=False):
                     logger.info(f'No ON elements found for {bname} - skipping')
                     continue
                     
-                cc_value[current_slice_idx-1]['save_length'] = cc_value[current_slice_idx-1]['total_length']
+                cc_value[current_slice_idx-1]['segment_length'] = cc_value[current_slice_idx-1]['total_length']
                 cc_value[current_slice_idx-1]['average_area'] = sum_cross_section_area / number_of_areas
-
+                cc_value[current_slice_idx-1]['length_on'] = total_length
+                
+                
+                summary = {
+                    'subject': subject,
+                    'side': side,
+                    'image_type': image_type,
+                    'length_on': total_length,
+                    'area': sum_cross_section_area / dy,
+                }
+                
+                summary_stats.append(summary)
+                
+                
                 sliceframe = pd.DataFrame(cc_value)
                 dataframe.append(sliceframe)
 
@@ -171,7 +186,8 @@ def main(path="./", debug=False):
                             'image_type': image_type,
                             'segment_type': max_voxel_value,
                             'segment_name': segment_types[max_voxel_value],
-                            'lenght': total_length,
+                            'segment_length': total_length,
+                            'length_on': total_length,
                             'area': sum_cross_section_area / number_of_areas
                         }
                     )
@@ -186,6 +202,12 @@ def main(path="./", debug=False):
     segment_info.to_excel(
         ResampStretchFile, index=False, header=True
     )
+    
+    # Save summary statistics
+    summary_stats_df = pd.DataFrame(summary_stats)
+    summary_stats_df.to_excel(
+        os.path.join(outResPath, 'summary_results_iso06.xlsx'),
+        index=False, header=True)
     
 if __name__ == "__main__":
     main()
