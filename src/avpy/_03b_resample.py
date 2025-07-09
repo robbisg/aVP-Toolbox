@@ -72,9 +72,14 @@ def process_images(study_path, base_image, debug=True):
             target_affine[2, 3] = img.affine[2, 3]
             
             # Use nearest neighbor interpolation for discrete data
+            if 'normalized' in base_image:
+                target_shape=(250, 102, 72)
+            else:
+                target_shape=None
+            
             resampled_img = resample_img(
                 modified_img,
-                target_shape=(250, 102, 72),
+                target_shape=target_shape,
                 target_affine=target_affine,
                 interpolation='nearest',
                 force_resample=False
@@ -105,7 +110,8 @@ def process_images(study_path, base_image, debug=True):
         
         nib.save(normalized_l_img, os.path.join(im_path, "total_l"+base_image))
         nib.save(normalized_r_img, os.path.join(im_path, "total_r"+base_image))
-        
+
+
 
 def main(path="./", debug=False):
     # Read study path from ONcontrol.txt

@@ -50,6 +50,7 @@ def main(path="./", debug=False):
     for subject in subject_list:        
         for side_idx, side in enumerate(sides):
             for rr_idx, image_type in enumerate(image_types):
+                
                 # Keep track of the combined index
                 bname = f"{subject}/on{side}_{image_type}_4bc_iso06"
                 fname = os.path.join(inPath, bname)
@@ -72,9 +73,10 @@ def main(path="./", debug=False):
                 
                 current_slice_idx = 0
                 number_of_areas = 0
+                total_areas = 0
                 sum_cross_section_area = 0
                 total_length = 0
-                partial_distance = 0
+                segment_length = 0
                 cc_value = []
                 
                 # Process each slice
@@ -95,16 +97,17 @@ def main(path="./", debug=False):
                     area = props[0].area * x_resolution * z_resolution
                     
                     number_of_areas += 1
+                    total_areas += 1
                     sum_cross_section_area += area
                                         
                     if current_slice_idx > 1:
+                        
                         previous_voxel_value = cc_value[current_slice_idx-1]['max_voxel_value']
-           
                         if max_voxel_value != previous_voxel_value:
                             
                             cc_value[current_slice_idx-1]['save_length'] = total_length
                             cc_value[current_slice_idx-1]['average_area'] = sum_cross_section_area / number_of_areas
-                            cc_value[current_slice_idx-1]['segment_length'] = partial_distance
+                            cc_value[current_slice_idx-1]['segment_length'] = segment_length
                             
                             segment_info.append(
                                 {
@@ -113,21 +116,21 @@ def main(path="./", debug=False):
                                     'image_type': image_type,
                                     'segment_type': previous_voxel_value,
                                     'segment_name': segment_types[previous_voxel_value],
-                                    'lenght': total_length,
+                                    'segment_length': segment_length,
                                     'area': sum_cross_section_area / number_of_areas
                                 }
                             )
                             
                             number_of_areas = 1
                             sum_cross_section_area = slice_data['area']
-                            partial_distance = 0
+                            segment_length = 0
                         else:
                             sum_cross_section_area += slice_data['area']
                             number_of_areas += 1
                             
                             
                     total_length += y_resolution
-                    partial_distance += y_resolution
+                    segment_length += y_resolution
                     
                     current_slice_idx += 1
                     
@@ -158,17 +161,16 @@ def main(path="./", debug=False):
                     logger.info(f'No ON elements found for {bname} - skipping')
                     continue
                     
-                cc_value[current_slice_idx-1]['segment_length'] = cc_value[current_slice_idx-1]['total_length']
+                cc_value[current_slice_idx-1]['segment_length'] = segment_length
                 cc_value[current_slice_idx-1]['average_area'] = sum_cross_section_area / number_of_areas
                 cc_value[current_slice_idx-1]['length_on'] = total_length
-                
                 
                 summary = {
                     'subject': subject,
                     'side': side,
                     'image_type': image_type,
                     'length_on': total_length,
-                    'area': sum_cross_section_area / dy,
+                    'area': sum_cross_section_area / total_areas,
                 }
                 
                 summary_stats.append(summary)
@@ -178,20 +180,20 @@ def main(path="./", debug=False):
                 dataframe.append(sliceframe)
 
                 # Save the last segment info
-                if max_voxel_value != 0:
-                    segment_info.append(
-                        {
-                            'subject': subject,
-                            'side': side,
-                            'image_type': image_type,
-                            'segment_type': max_voxel_value,
-                            'segment_name': segment_types[max_voxel_value],
-                            'segment_length': total_length,
-                            'length_on': total_length,
-                            'area': sum_cross_section_area / number_of_areas
-                        }
-                    )
-                
+                voxel_value = cc_value[current_slice_idx-1]['max_voxel_value']
+                segment_info.append(
+                    {
+                        'subject': subject,
+                        'side': side,
+                        'image_type': image_type,
+                        'segment_type': voxel_value,
+                        'segment_name': segment_types[voxel_value],
+                        'length_on': total_length,
+                        'segment_length': segment_length,
+                        'area': sum_cross_section_area / number_of_areas
+                    }
+                )
+
     # Build dataframe
     dataframe = pd.concat(dataframe)
     dataframe.to_excel(
@@ -206,7 +208,7 @@ def main(path="./", debug=False):
     # Save summary statistics
     summary_stats_df = pd.DataFrame(summary_stats)
     summary_stats_df.to_excel(
-        os.path.join(outResPath, 'summary_results_iso06.xlsx'),
+        os.path.join(outResPath, 'CSA_total_iso06.xlsx'),
         index=False, header=True)
     
 if __name__ == "__main__":

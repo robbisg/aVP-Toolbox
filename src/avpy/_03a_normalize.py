@@ -410,19 +410,21 @@ def main(path="./", debug=False):
             nib.save(lin_img, os.path.join(outImPath, subject, f"on{side}{Lin4image}"))
             
             # Normalize the data
+            normalized_n_slices = 104 * resolution_increase + 1
             slice_length = round(cc_value[-1]['length_on'] / (nifti_img.header['pixdim'][2] / 10))
-            lengthfactor = max_slices / slice_length
+            lengthfactor = normalized_n_slices / slice_length
             
-            normalized_image = np.zeros_like(hres_linear_image)
-            check_range = np.zeros(max_slices, dtype=int)
+            normalized_image = np.zeros((x_dim, normalized_n_slices, z_dim), dtype=np.float32)
+
+            check_range = np.zeros(normalized_n_slices, dtype=int)
             
             logger.info("Normalization...")
             
-            for ii in range(max_slices):
+            for ii in range(normalized_n_slices):
                 # Figure out slice in aligned that needs to go 
                 # into the ii-th slice of the normalized
                 
-                jj = round(ii / max_slices * slice_counter)  
+                jj = round(ii / normalized_n_slices * slice_counter)  
                 
                 if jj < 1:
                     jj = 1
