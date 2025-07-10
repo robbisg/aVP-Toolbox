@@ -72,11 +72,15 @@ def main(path="./", debug=False):
                 z_resolution = img.header.get_zooms()[2]
                 
                 current_slice_idx = 0
-                number_of_areas = 0
-                total_areas = 0
-                sum_cross_section_area = 0
+                
+                n_segment_area = 0
+                n_total_area = 0
+                total_area = 0
+                segment_area = 0
+                
                 total_length = 0
                 segment_length = 0
+                
                 cc_value = []
                 
                 # Process each slice
@@ -96,9 +100,10 @@ def main(path="./", debug=False):
                     
                     area = props[0].area * x_resolution * z_resolution
                     
-                    number_of_areas += 1
-                    total_areas += 1
-                    sum_cross_section_area += area
+                    n_segment_area += 1
+                    n_total_area += 1
+                    total_area += area
+                    segment_area += area
                                         
                     if current_slice_idx > 1:
                         
@@ -106,7 +111,7 @@ def main(path="./", debug=False):
                         if max_voxel_value != previous_voxel_value:
                             
                             cc_value[current_slice_idx-1]['save_length'] = total_length
-                            cc_value[current_slice_idx-1]['average_area'] = sum_cross_section_area / number_of_areas
+                            cc_value[current_slice_idx-1]['average_area'] = segment_area / n_segment_area
                             cc_value[current_slice_idx-1]['segment_length'] = segment_length
                             
                             segment_info.append(
@@ -117,16 +122,16 @@ def main(path="./", debug=False):
                                     'segment_type': previous_voxel_value,
                                     'segment_name': segment_types[previous_voxel_value],
                                     'segment_length': segment_length,
-                                    'area': sum_cross_section_area / number_of_areas
+                                    'area': segment_area / n_segment_area
                                 }
                             )
                             
-                            number_of_areas = 1
-                            sum_cross_section_area = slice_data['area']
+                            n_segment_area = 1
+                            segment_area = slice_data['area']
                             segment_length = 0
                         else:
-                            sum_cross_section_area += slice_data['area']
-                            number_of_areas += 1
+                            segment_area += slice_data['area']
+                            n_segment_area += 1
                             
                             
                     total_length += y_resolution
@@ -162,7 +167,7 @@ def main(path="./", debug=False):
                     continue
                     
                 cc_value[current_slice_idx-1]['segment_length'] = segment_length
-                cc_value[current_slice_idx-1]['average_area'] = sum_cross_section_area / number_of_areas
+                cc_value[current_slice_idx-1]['average_area'] = segment_area / n_segment_area
                 cc_value[current_slice_idx-1]['length_on'] = total_length
                 
                 summary = {
@@ -170,7 +175,7 @@ def main(path="./", debug=False):
                     'side': side,
                     'image_type': image_type,
                     'length_on': total_length,
-                    'area': sum_cross_section_area / total_areas,
+                    'area': total_area / n_total_area,
                 }
                 
                 summary_stats.append(summary)
@@ -190,7 +195,7 @@ def main(path="./", debug=False):
                         'segment_name': segment_types[voxel_value],
                         'length_on': total_length,
                         'segment_length': segment_length,
-                        'area': sum_cross_section_area / number_of_areas
+                        'area': segment_area / n_segment_area
                     }
                 )
 
