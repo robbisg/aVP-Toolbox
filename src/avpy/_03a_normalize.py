@@ -301,7 +301,7 @@ def main(path="./", debug=False):
             cc_value[active_slice]['partial_length'] = partial_distance
             cc_value[active_slice]['average_area'] = segment_area / number_of_areas
             cc_value[active_slice]['total_length'] = length_optical_nerve
-            cc_value[active_slice]['total_area'] = total_area / y_dim
+            cc_value[active_slice]['total_area'] = total_area / n_total_area
             
             total_subject_results = {
                 'subject': subject,
@@ -469,7 +469,7 @@ def main(path="./", debug=False):
     
     total_subject_dataframe = pd.DataFrame(total_subject_dataframe)
     total_subject_dataframe.to_excel(
-        os.path.join(outResPath, 'CSA_total_proc.xlsx'),
+        os.path.join(outResPath, 'CSA_total_orig.xlsx'),
         index=False, header=True)
 
                 
