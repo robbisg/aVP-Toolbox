@@ -146,6 +146,11 @@ def main():
                 logger.warning("Skipping 'stats' step because --dataset-A or --dataset-B is missing.")
                 steps_to_run.remove('stats')
         
+        if 'atlas' in steps_to_run and len(steps_to_run) > 1:
+            # Ensure atlas step is run only if datasets are provided
+            logger.warning("Skipping 'atlas' step. Run it separately if needed.")
+            steps_to_run.remove('atlas')
+                
         # Run the processing steps
         for step_name in steps_to_run:
             if step_name == 'stats' and options.dataset_a and options.dataset_b:
