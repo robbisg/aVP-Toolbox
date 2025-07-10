@@ -141,6 +141,7 @@ def main(path="./", debug=False):
             length_optical_nerve = 0
             length_optical_nerve_gap = 0
             total_area = 0
+            n_total_area = 0
             partial_distance = 0
             factor = 1
 
@@ -163,16 +164,16 @@ def main(path="./", debug=False):
                 if active_slice == 0:
                     current_max_value = max_voxel_value
                     number_of_areas = 0
-                    sum_cross_section_area = 0
+                    segment_area = 0
                 else:
                     if current_max_value != max_voxel_value:
                         current_max_value = max_voxel_value
                         
                         cc_value[previous_slice]['partial_length'] = partial_distance
-                        cc_value[previous_slice]['average_area'] = sum_cross_section_area / number_of_areas
+                        cc_value[previous_slice]['average_area'] = segment_area / number_of_areas
                         
                         number_of_areas = 0
-                        sum_cross_section_area = 0
+                        segment_area = 0
                         partial_distance = 0
                 
                 # Deal with centering the mask in a new version of the image
@@ -251,7 +252,8 @@ def main(path="./", debug=False):
                 
                 area = props[0].area * x_resolution * z_resolution
                 number_of_areas += 1
-                sum_cross_section_area += area
+                n_total_area += 1
+                segment_area += area
                 total_area += area
                 
                 # Initialize dictionary for this slice
@@ -297,7 +299,7 @@ def main(path="./", debug=False):
                 
             # Save processed info
             cc_value[active_slice]['partial_length'] = partial_distance
-            cc_value[active_slice]['average_area'] = sum_cross_section_area / number_of_areas
+            cc_value[active_slice]['average_area'] = segment_area / number_of_areas
             cc_value[active_slice]['total_length'] = length_optical_nerve
             cc_value[active_slice]['total_area'] = total_area / y_dim
             
@@ -305,7 +307,7 @@ def main(path="./", debug=False):
                 'subject': subject,
                 'side': side,
                 'length_on': length_optical_nerve,
-                'total_area': total_area / y_dim,
+                'total_area': total_area / n_total_area,
             }
             
             total_subject_dataframe.append(total_subject_results)            
@@ -467,7 +469,7 @@ def main(path="./", debug=False):
     
     total_subject_dataframe = pd.DataFrame(total_subject_dataframe)
     total_subject_dataframe.to_excel(
-        os.path.join(outResPath, 'summary_results.xlsx'),
+        os.path.join(outResPath, 'CSA_total_proc.xlsx'),
         index=False, header=True)
 
                 
