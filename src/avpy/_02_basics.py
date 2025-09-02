@@ -39,7 +39,7 @@ def main(path='./', debug=False):
     # Set up paths
     in_path = f"{study_path}/data/proc"
     out_path = f"{study_path}/results"
-    out_file = "raw_stats.xlsx"
+    out_file = "CSA_raw_stats.xlsx"
 
     # Create output directory if it doesn't exist
     os.makedirs(out_path, exist_ok=True)
