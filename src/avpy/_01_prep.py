@@ -158,31 +158,38 @@ def main(path="./", debug=False):
                 mask = np.logical_or(mask, img_data != 0)
             
             # Create combined image
-            
-            # Check if the affine is identity matrix
-            if np.all(np.isclose(ot.affine, np.eye(4))):
-                logger.warning(f"Affine for {ot.get_filename()} is identity matrix, using custom affine.")
-                affine = [[-0.6, 0, 0, 74.4],
-                          [0, 0.6, 0, -60.6],
-                          [0, 0, 0.6, -21.],
-                          [0, 0, 0, 1]]
+            combined_img = nib.Nifti1Image(combined_data, ot.affine, ot.header)
+            combined_path = os.path.join(oo, f"on_{xx}.nii.gz")
 
 
+            # Resample images to 0.6mm isotropic if needed
+            # This ensures that all images are in the same space
+            if not np.allclose(ot.header.get_zooms()[:3], (0.6, 0.6, 0.6)):
+                logger.warning(f"Resampling {ot.get_filename()} from {ot.header.get_zooms()} to (0.6, 0.6, 0.6)")
+                                
+                affine = ot.affine.copy()
+                affine[0, 0] = 0.6 * np.sign(ot.affine[0, 0])
+                affine[1, 1] = 0.6 * np.sign(ot.affine[1, 1])
+                affine[2, 2] = 0.6 * np.sign(ot.affine[2, 2])
+                
+                combined_img = image.resample_img(combined_img, 
+                                                  target_affine=affine, 
+                                                  interpolation='nearest'
+                                                 )
+                combined_data = combined_img.get_fdata()
+                                                
             else:
                 affine = ot.affine
             
             
-            affine = np.array(affine, dtype=np.float32)
-            combined_img = nib.Nifti1Image(combined_data, affine, ot.header)
-            combined_path = os.path.join(oo, f"on_{xx}.nii.gz")
-                                    
+            # Ensure final shape is (256, 256, 72)
+            # This is the expected shape for further processing
             target_shape = (256, 256, 72)
-            
             
             if combined_data.shape != target_shape:
                     
-                logger.warning(f"Resampling {combined_path}")
-                target_affine = img.affine * np.eye(4)
+                logger.warning(f"Reshaping {combined_path}")
+                target_affine = affine * np.eye(4)
                 zooms = np.diag(target_affine)[:-1]
                 
                 target_affine[0, 3] = -74.4 * np.sign(zooms[0])
@@ -196,6 +203,7 @@ def main(path="./", debug=False):
                     interpolation='nearest',
                     force_resample=False,
                 )
+                
                             
             logger.debug(f"Max value in combined data: {combined_data.max()} in {combined_path}")
             assert combined_data.max() <= 16
