@@ -122,11 +122,11 @@ def main(path="./", debug=False):
     
     # Process linearized images
     logger.info("Processing linearized images...")
-    process_images(study_path, "_linearize_4bc.nii.gz")
+    process_images(study_path, "_linearize_4bc.nii.gz", debug=debug)
     
     # Process normalized images
     logger.info("Processing normalized images...")
-    process_images(study_path, "_normalized_4bc.nii.gz")
+    process_images(study_path, "_normalized_4bc.nii.gz", debug=debug)
 
 if __name__ == "__main__":
     main()
