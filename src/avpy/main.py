@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 import sentry_sdk
 
-from avpy import _01_prep, _02_basics, _03a_normalize, \
+from avpy import _01_prep, _01a_segmentation_prep, _01b_affine_prep, _02_basics, _03a_normalize, \
     _03b_resample, _03c_normalize, _05_doatlas, stats
 
 logger = logging.getLogger(__name__)
@@ -18,6 +18,8 @@ logging.basicConfig(
 # Define all available step modules with their names for better management
 STEP_MODULES = {
     'prep': _01_prep,
+    'segmentation_prep': _01a_segmentation_prep,
+    'affine_prep': _01b_affine_prep,
     'basics': _02_basics,
     'normalize': _03a_normalize,
     'resample': _03b_resample,
@@ -96,7 +98,7 @@ def main():
         - 'step_name-end': Run from specified step to the end
         - 'step1-step2': Run a range of steps from step1 to step2
         
-        Available steps: prep, basics, normalize, resample, normalize_stats, atlas, stats"""
+        Available steps: prep, segmentation_prep, affine_prep, basics, normalize, resample, normalize_stats, atlas, stats"""
         ),
     )
     parser.add_argument(

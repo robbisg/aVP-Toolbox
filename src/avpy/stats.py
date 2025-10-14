@@ -1,20 +1,42 @@
+#!/usr/bin/env python3
+# 
+# This script is part of the aVP-Toolbox v0.11 - 2023 software. 
+#
+# aVP-Toolbox ("The software") is licensed under the Creative Commons Attribution 4.0 International License, 
+# permitting use, sharing, adaptation, distribution and reproduction in any medium or format, 
+# as long as you give appropriate credit to the original author(s) and the source, provide 
+# a link to the Creative Commons licence, and indicate if changes were made. 
+# The licensor offers the Licensed Material as-is and as-available, and makes no 
+# representations or warranties of any kind concerning the Licensed Material, 
+# whether express, implied, statutory, or other. This includes, without limitation, 
+# warranties of title, merchantability, fitness for a particular purpose, non-infringement, 
+# absence of latent or other defects, accuracy, or the presence or absence of errors, 
+# whether or not known or discoverable. Where disclaimers of warranties are not allowed 
+# in full or in part, this disclaimer may not apply to You. 
+# Please go to http://creativecommons.org/licenses/by/4.0/ to view a complete copy of this licence.
+#
+# Statistical analysis module for aVP-Toolbox: generates nerve maps and performs 
+# statistical comparisons between groups.
+
 import pandas as pd
 import nibabel as ni
 import numpy as np
 import os
+import os.path as op
 from sekupy.results import apply_function, filter_dataframe
 from scipy.stats import ttest_ind
 from matplotlib.ticker import FormatStrFormatter
 import matplotlib.pyplot as pl
 import pingouin as pg
-import argparse
-import os.path as op
+import logging
 
+logger = logging.getLogger(__name__)
+NAME = "stats"
+
+# Initialize atlas paths
 parent_dir = op.dirname(op.dirname(op.dirname(op.abspath(__file__))))
 atlas_dir = op.join(parent_dir, "atlas")
 atlas_name = "aVP-24_label.nii.gz"
-print(f"Atlas directory: {atlas_dir}")
-print(f"Parent directory: {parent_dir}")
 
 def create_nerve_map(dataframe, feature):
     
@@ -110,53 +132,79 @@ def plot_nerve(nerve_map,
     return fig, ax
 
 
-def main(path="./", dataset_a="HC", dataset_b="PTS", variable="Eccent"):
+def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None, 
+                       image_type='normalized', p_value=0.05, correction_method='bonferroni', 
+                       generate_figures=False, debug=False):
+    """
+    Generate nerve maps and perform statistical analysis between two datasets.
     
+    Args:
+        path (str): Root path containing the data
+        dataset_a (str): Name of first dataset group  
+        dataset_b (str): Name of second dataset group
+        features (list): List of features to analyze (default: ['Eccent', 'CSArea'])
+        sides (list): List of sides to analyze (default: ['r', 'l'])
+        image_type (str): Type of image data to process (default: 'normalized')
+        p_value (float): P-value threshold for statistical tests (default: 0.05)
+        correction_method (str): Correction method ('bonferroni' or 'fdr')
+        generate_figures (bool): Whether to generate and save figures
+        debug (bool): Enable debug logging
+        
+    Returns:
+        pd.DataFrame: Combined results dataframe with statistics
+    """
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
     
-    parser = argparse.ArgumentParser(description="Process nerve map generation and statistical analysis.")
-    parser.add_argument("--feature", type=str, default="Eccent", help="Feature to analyze (e.g., Eccent, CSArea).")
-    parser.add_argument("--p_value", type=float, default=0.05, help="P-value threshold for statistical tests.")
-    parser.add_argument("--correction", type=str, choices=["bonferroni", "fdr"], default="bonferroni", help="Correction method for multiple comparisons.")
-    parser.add_argument("--image_type", type=str, default="normalized", help="Type of image data to process (e.g., normalized, raw).")
+    logger.info(f"Starting statistical analysis: {dataset_a} vs {dataset_b}")
     
-    args = parser.parse_args()
-
-    # Update variables with arguments
-    variable = args.feature
-    p_value = args.p_value
-    correction_method = args.correction
-    image_type = args.image_type
-    
-    do_figures = False
+    if features is None:
+        features = ['Eccent', 'CSArea']
+    if sides is None:
+        sides = ['r', 'l']
     dataframe = []
-
-    # TODO: turn this into parameters
-    features = ['Eccent', 'CSArea']
-    sides = ['r', 'l']
-    image_type = 'normalized'
+    do_figures = generate_figures
     
+    # Create output directory
     path_map = op.join(path, "maps")
+    os.makedirs(path_map, exist_ok=True)
+    
     results_fname = op.join(path, "{group}", "results", "aVP_slice_data_iso.xlsx")
     map_name = "sub-group_feature-{feature}_group-{group}_side-{side}_on.nii.gz"
     
-    atlas = ni.load(op.join("aVP-24_label.nii"))
+    # Load atlas with error handling
+    atlas_path = op.join(atlas_dir, atlas_name)
+    if not op.exists(atlas_path):
+        # Fallback to local atlas
+        atlas_path = "aVP-24_label.nii"
+        logger.warning(f"Atlas not found at {atlas_path}, using fallback")
+        
+    if not op.exists(atlas_path):
+        raise FileNotFoundError(f"Atlas file not found: {atlas_path}")
+    
+    atlas = ni.load(atlas_path)
     atlas_data = atlas.get_fdata()
     x_dim, y_dim, z_dim = atlas_data.shape
     n_slices = atlas.shape[1]
     
-    p_value = 0.05
     bonferroni_value = p_value / n_slices
+    logger.info(f"Using Bonferroni correction: {bonferroni_value}")
 
     groups = [dataset_a, dataset_b]
 
-    # Read data for each group
+    # Read data for each group with error handling
     for group in groups:
-        df = pd.read_excel(results_fname.format(group=group))
-        df['group'] = [group] * df.shape[0]
+        group_file = results_fname.format(group=group)
+        if not op.exists(group_file):
+            raise FileNotFoundError(f"Results file not found for group {group}: {group_file}")
         
+        logger.info(f"Loading data for group: {group}")
+        df = pd.read_excel(group_file)
+        df['group'] = [group] * df.shape[0]
         dataframe.append(df)
     
     full_dataframe = pd.concat(dataframe, ignore_index=True)
+    logger.info(f"Loaded data for {len(groups)} groups with {len(full_dataframe)} total samples")
 
     
     for feature in features:
@@ -376,7 +424,62 @@ def main(path="./", dataset_a="HC", dataset_b="PTS", variable="Eccent"):
             fig.savefig(op.join(path_map,
                                     f"sub-group_feature-{feature}_stats-ttestbonferroni_side-both_on.png"))
         
-    dfs.to_excel(op.join(path_map, "aVP_feature_stats.xlsx"))
+    # Save results and return dataframe
+    output_file = op.join(path_map, "aVP_feature_stats.xlsx")
+    dfs.to_excel(output_file)
+    logger.info(f"Results saved to: {output_file}")
+    
+    return dfs
+
+
+def main(path="./", dataset_a="HC", dataset_b="PTS", debug=False):
+    """
+    Main function for statistical analysis - compatible with CLI interface.
+    
+    Args:
+        path (str): Root path containing the data
+        dataset_a (str): Name of first dataset group
+        dataset_b (str): Name of second dataset group  
+        debug (bool): Enable debug logging
+    """
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
+    
+    logger.info("Starting aVP-Toolbox statistical analysis")
+    logger.info(f"Atlas directory: {atlas_dir}")
+    logger.info(f"Parent directory: {parent_dir}")
+    
+    try:
+        results_df = generate_nerve_maps(
+            path=path,
+            dataset_a=dataset_a, 
+            dataset_b=dataset_b,
+            features=['Eccent', 'CSArea'],
+            sides=['r', 'l'],
+            image_type='normalized',
+            p_value=0.05,
+            correction_method='bonferroni',
+            generate_figures=False,
+            debug=debug
+        )
+        
+        logger.info("Statistical analysis completed successfully")
+        return results_df
+        
+    except Exception as e:
+        logger.error(f"Error during statistical analysis: {e}")
+        raise
+
 
 if __name__ == '__main__':
-    main()
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Statistical analysis for aVP-Toolbox")
+    parser.add_argument("--path", type=str, default="./", help="Root path containing the data")
+    parser.add_argument("--dataset-a", type=str, default="HC", help="Name of first dataset group")
+    parser.add_argument("--dataset-b", type=str, default="PTS", help="Name of second dataset group")
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+    
+    args = parser.parse_args()
+    
+    main(path=args.path, dataset_a=args.dataset_a, dataset_b=args.dataset_b, debug=args.debug)
