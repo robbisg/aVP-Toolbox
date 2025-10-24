@@ -60,10 +60,6 @@ def main(path="./", debug=False):
     outImPath = os.path.join(StudyPath, 'data', 'proc')
     outResPath = os.path.join(StudyPath, 'results')
 
-    # Output file paths
-    DataFile = os.path.join(outResPath, 'CSA_slice.xlsx')
-
-
     # Define image output file names
     Lin4image = '_linearize_4bc.nii.gz'
     Norm4image = '_normalized_4bc.nii.gz'
@@ -81,25 +77,28 @@ def main(path="./", debug=False):
     resolution_increase = 10
     max_slices = 160 * resolution_increase
 
+    # This is used to collect and save all single-slice, single-subject data
     dataframe = []
+    dataframe_fname = os.path.join(outResPath, 'CSA_slice.xlsx')
+
 
     # Main processing loop
     # TODO: Consider to use multiprocessing for parallel processing
     # TODO: Consider to use a progress bar for better user experience
     # TODO: Consider to create a subject function to encapsulate the logic
 
-
     segment_types = {
         16: "OT",
-        8: "OC",
-        4: "iCran",
-        2: "iCan",
-        1: "iOrb"
+        8:  "OC",
+        4:  "iCran",
+        2:  "iCan",
+        1:  "iOrb"
     }
     
     if debug:
         hres_l = []
         hres_r = []
+    
     
     total_subject_dataframe = []
 
@@ -465,7 +464,7 @@ def main(path="./", debug=False):
         dataframe.drop(columns=to_be_dropped, 
                        inplace=True)
         
-    dataframe.to_excel(DataFile, index=False)
+    dataframe.to_excel(dataframe_fname, index=False)
     
     total_subject_dataframe = pd.DataFrame(total_subject_dataframe)
     total_subject_dataframe.to_excel(
