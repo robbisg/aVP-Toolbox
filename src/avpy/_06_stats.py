@@ -159,7 +159,7 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
     logger.info(f"Starting statistical analysis: {dataset_a} vs {dataset_b}")
     
     if features is None:
-        features = ['Eccent', 'CSArea']
+        features = ['eccent', 'area']
     if sides is None:
         sides = ['r', 'l']
     dataframe = []
@@ -169,7 +169,7 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
     path_map = op.join(path, "maps")
     os.makedirs(path_map, exist_ok=True)
     
-    results_fname = op.join(path, "{group}", "results", "aVP_slice_data_iso.xlsx")
+    results_fname = op.join(path, "{group}", "results", "CSA_slice_iso.xlsx")
     map_name = "sub-group_feature-{feature}_group-{group}_side-{side}_on.nii.gz"
     
     # Load atlas with error handling
@@ -184,7 +184,6 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
     
     atlas = ni.load(atlas_path)
     atlas_data = atlas.get_fdata()
-    x_dim, y_dim, z_dim = atlas_data.shape
     n_slices = atlas.shape[1]
     
     bonferroni_value = p_value / n_slices
@@ -205,7 +204,7 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
     
     full_dataframe = pd.concat(dataframe, ignore_index=True)
     logger.info(f"Loaded data for {len(groups)} groups with {len(full_dataframe)} total samples")
-
+    logger.info(full_dataframe.columns)
     
     for feature in features:
         for side in sides:
@@ -214,7 +213,7 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
                 df = filter_dataframe(full_dataframe, 
                                       group=[group], 
                                       side=[side], 
-                                      type=[image_type])        
+                                      image_type=[image_type])        
                 df = apply_function(df, keys=['original_slice_yz'], 
                                     attr=feature, fx=lambda x: x.mean(0))
                 
@@ -236,22 +235,20 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
                 
     ###################################################################################
     # 3) Tests
-
-
     for feature in features:
         for side in sides:
                     
             df = filter_dataframe(full_dataframe, 
                                   side=[side], 
-                                  type=[image_type])        
+                                  image_type=[image_type])        
             
             nerve_map_t = np.zeros((atlas.shape[0], atlas.shape[1], atlas.shape[2]))
             nerve_map_p = np.zeros((atlas.shape[0], atlas.shape[1], atlas.shape[2]))
             
             for y in range(n_slices):
                 
-                df_slice_a = filter_dataframe(df, curr_sli_yz=[y+1], group=[dataset_a])
-                df_slice_b = filter_dataframe(df, curr_sli_yz=[y+1], group=[dataset_b])
+                df_slice_a = filter_dataframe(df, current_slice_yz=[y+1], group=[dataset_a])
+                df_slice_b = filter_dataframe(df, current_slice_yz=[y+1], group=[dataset_b])
                 
                 t, p = ttest_ind(df_slice_a[feature].values, 
                                  df_slice_b[feature].values)
@@ -293,9 +290,9 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
             df = filter_dataframe(full_dataframe, 
                                   group=[group], 
                                   side=[side], 
-                                  type=[image_type])        
+                                  image_type=[image_type])        
             df = apply_function(df, 
-                                keys=['original_slice_yz', 'subject_id'], 
+                                keys=['original_slice_yz', 'subject'], 
                                 attr=feature, 
                                 fx=lambda x: x.mean(0))
             
@@ -328,7 +325,7 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
             df = filter_dataframe(full_dataframe, 
                                   group=[group], 
                                   side=[side], 
-                                  type=[image_type])        
+                                  image_type=[image_type])        
             df_mean = apply_function(df, 
                                 keys=['original_slice_yz'], 
                                 attr=feature, 
@@ -351,16 +348,13 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
 
     ###################################################################################
     # 3) Plot different values
-
-
     extension_fig = 'png'
-
 
     for feature in features:
                 
-        df = filter_dataframe(full_dataframe, type=[image_type])        
+        df = filter_dataframe(full_dataframe, image_type=[image_type])        
         df = apply_function(df, 
-                            keys=['curr_sli_yz', 'group', 'subject_id'], 
+                            keys=['current_slice_yz', 'group', 'subject'], 
                             attr=feature, 
                             fx=lambda x: x.mean(0))
         
@@ -372,8 +366,8 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
         
         for y in range(n_slices):
             
-            df_slice_a = filter_dataframe(df, curr_sli_yz=[y+1], group=[dataset_a])
-            df_slice_b = filter_dataframe(df, curr_sli_yz=[y+1], group=[dataset_b])
+            df_slice_a = filter_dataframe(df, current_slice_yz=[y+1], group=[dataset_a])
+            df_slice_b = filter_dataframe(df, current_slice_yz=[y+1], group=[dataset_b])
             
             t, p = ttest_ind(df_slice_a[feature].values, 
                              df_slice_b[feature].values)
@@ -454,12 +448,12 @@ def main(path="./", dataset_a="HC", dataset_b="PTS", debug=False):
             path=path,
             dataset_a=dataset_a, 
             dataset_b=dataset_b,
-            features=['Eccent', 'CSArea'],
+            #features=['Eccent', 'CSArea'],
             sides=['r', 'l'],
             image_type='normalized',
             p_value=0.05,
             correction_method='bonferroni',
-            generate_figures=False,
+            generate_figures=True,
             debug=debug
         )
         
