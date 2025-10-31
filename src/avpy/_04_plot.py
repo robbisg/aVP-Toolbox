@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 NAME = "plot_features"
 
 def create_feature_lineplot(df, feature, x_axis='current_slice_yz', group_by='subject', 
-                           output_path=None):
+                            image_type='linearized', output_path=None):
     """
     Create line plot showing individual subjects (transparent) and average (thick) with segments separated.
     
@@ -52,18 +52,45 @@ def create_feature_lineplot(df, feature, x_axis='current_slice_yz', group_by='su
     logger.debug(f"Creating line plot for feature: {feature}")
     
     plot_df = df.copy()
+    plot_df = plot_df[plot_df['image_type'] == image_type]
     
     if len(plot_df) == 0:
         logger.warning(f"No data available for {feature}")
         return
     
+    
+    # Plot single subject l/r lines
+    fig, ax = plt.subplots(figsize=(16, 8))
+    
+    # Plot individual subjects as transparent lines
+    subjects = plot_df[group_by].unique()
+    logger.debug(f"Plotting {len(subjects)} subjects")
+    
+    for subject in subjects:
+        subject_data = plot_df[plot_df[group_by] == subject]
+        if len(subject_data) > 0:
+            ax.plot(subject_data[x_axis], subject_data[feature], 
+                   alpha=0.3, linewidth=1, color='gray')
+    
+    # Calculate and plot average line
+    avg_data = plot_df.groupby('plot_x')[feature].agg(['mean', 'std']).reset_index()
+    
+    # Plot average line with seaborn
+    ax.plot(avg_data['plot_x'], avg_data['mean'], 
+           linewidth=4, color='darkblue', label='Average', 
+           marker='o', markersize=6, markerfacecolor='white', 
+           markeredgecolor='darkblue', markeredgewidth=2)
+    
+    
+    
+    
     # Average between sides for each subject and slice
     if 'side' in plot_df.columns:
         logger.debug("Averaging between left and right sides")
-        plot_df = plot_df.groupby([group_by, x_axis, 'segment_name'])[feature].mean().reset_index()
+        plot_df = plot_df.groupby([group_by, x_axis])[feature].mean().reset_index()
     else:
         # If no side column, just ensure we have the right grouping
-        plot_df = plot_df.groupby([group_by, x_axis, 'segment_name'])[feature].mean().reset_index()
+        plot_df = plot_df.groupby([group_by, x_axis])[feature].mean().reset_index()
     
     # Get segment information for x-axis separation
     segments = plot_df['segment_name'].unique()
@@ -107,27 +134,7 @@ def create_feature_lineplot(df, feature, x_axis='current_slice_yz', group_by='su
     
     # Set up the plot with seaborn style
     sns.set_palette("husl")
-    fig, ax = plt.subplots(figsize=(16, 8))
-    
-    # Plot individual subjects as transparent lines
-    subjects = plot_df[group_by].unique()
-    logger.debug(f"Plotting {len(subjects)} subjects")
-    
-    for subject in subjects:
-        subject_data = plot_df[plot_df[group_by] == subject].sort_values('plot_x')
-        if len(subject_data) > 0:
-            ax.plot(subject_data['plot_x'], subject_data[feature], 
-                   alpha=0.3, linewidth=1, color='gray', 
-                   label='Individual subjects' if subject == subjects[0] else "")
-    
-    # Calculate and plot average line
-    avg_data = plot_df.groupby('plot_x')[feature].agg(['mean', 'std']).reset_index()
-    
-    # Plot average line with seaborn
-    ax.plot(avg_data['plot_x'], avg_data['mean'], 
-           linewidth=4, color='darkblue', label='Average', 
-           marker='o', markersize=6, markerfacecolor='white', 
-           markeredgecolor='darkblue', markeredgewidth=2)
+
     
     # Add vertical lines to separate segments
     segment_boundaries = []
@@ -213,10 +220,9 @@ def create_feature_lineplot(df, feature, x_axis='current_slice_yz', group_by='su
         plt.savefig(output_path, dpi=300, bbox_inches='tight', facecolor='white')
         logger.info(f"Plot saved to: {output_path}")
     
-    plt.show()
     return fig
 
-def main(path="./", features=None, debug=False):
+def main(path="./", features=['area', 'eccent'], debug=False, image_type='linearize'):
     """
     Main function to generate feature plots from CSA_slice.xlsx
     
@@ -230,9 +236,14 @@ def main(path="./", features=None, debug=False):
     
     logger.info("Starting feature plotting")
     
-    # Default features to plot
-    if features is None:
-        features = ['area', 'eccent']
+    # image_type can be 'linearized' or 'normalized' or both
+    if image_type in ['linearize', 'normalized']:
+        image_type = [image_type]
+    elif image_type == 'both':
+        image_type = ['linearize', 'normalized']
+    else:
+        logger.warning(f"Unknown image_type '{image_type}', defaulting to 'linearize'")
+        image_type = ['linearize']
     
     # Set up paths
     StudyPath = path
@@ -248,7 +259,9 @@ def main(path="./", features=None, debug=False):
     
     # Load data
     logger.info(f"Loading data from: {data_file}")
+    
     df = pd.read_excel(data_file)
+    
     logger.info(f"Loaded {len(df)} rows of data")
     logger.debug(f"Available columns: {df.columns.tolist()}")
     logger.debug(f"Available features: {[col for col in df.columns if col in ['area', 'eccent', 'majaxis', 'minaxis']]}")
@@ -265,82 +278,20 @@ def main(path="./", features=None, debug=False):
             logger.warning(f"Feature '{feature}' not found in data. Available features: {df.columns.tolist()}")
             continue
         
-        logger.info(f"Generating plot for feature: {feature}")
+        for im_type in image_type:
         
-        # Single clean plot with segments separated
-        output_file = os.path.join(plots_path, f'{feature}_segments.png')
-        create_feature_lineplot(
-            df, feature, 
-            output_path=output_file
-        )
-    
-    # Generate comparison plot if multiple features requested
-    if len([f for f in features if f in df.columns]) > 1:
-        logger.info("Generating comparison plot")
+            logger.info(f"Generating plot for feature: {feature}")
+            
+            # Single clean plot with segments separated
+            output_file = os.path.join(plots_path, f'{feature}_segments.png')
+            create_feature_lineplot(
+                df, feature, image_type=im_type,
+                output_path=output_file
+            )
         
-        valid_features = [f for f in features if f in df.columns]
-        
-        fig, axes = plt.subplots(len(valid_features), 1, figsize=(14, 6 * len(valid_features)))
-        if len(valid_features) == 1:
-            axes = [axes]
-        
-        for i, feature in enumerate(valid_features):
-            # Calculate averages between sides
-            plot_df = df.copy()
-            if 'side' in plot_df.columns:
-                plot_df = plot_df.groupby(['subject', 'current_slice_yz', 'segment_name'])[feature].mean().reset_index()
-            
-            avg_data = plot_df.groupby(['current_slice_yz', 'segment_name'])[feature].agg(['mean', 'std']).reset_index()
-            avg_data.columns = ['current_slice_yz', 'segment_name', 'mean', 'std']
-            
-            # Plot for each segment
-            segments = avg_data['segment_name'].unique()
-            segments = [seg for seg in segments if pd.notna(seg)]
-            
-            colors = plt.cm.Set1(np.linspace(0, 1, len(segments)))
-            
-            for j, segment in enumerate(segments):
-                segment_data = avg_data[avg_data['segment_name'] == segment].sort_values('current_slice_yz')
-                if len(segment_data) > 0:
-                    axes[i].plot(segment_data['current_slice_yz'], segment_data['mean'], 
-                                linewidth=2, label=segment, color=colors[j], marker='o', markersize=3)
-                    axes[i].fill_between(segment_data['current_slice_yz'], 
-                                        segment_data['mean'] - segment_data['std'],
-                                        segment_data['mean'] + segment_data['std'],
-                                        alpha=0.2, color=colors[j])
-            
-            axes[i].set_xlabel('Slice Position')
-            axes[i].set_ylabel(feature.replace('_', ' ').title())
-            axes[i].set_title(f'{feature.replace("_", " ").title()} by Segments')
-            axes[i].grid(True, alpha=0.3)
-            axes[i].legend()
-        
-        plt.tight_layout()
-        comparison_file = os.path.join(plots_path, f'comparison_{"_".join(valid_features)}.png')
-        plt.savefig(comparison_file, dpi=300, bbox_inches='tight')
-        logger.info(f"Comparison plot saved to: {comparison_file}")
-        plt.show()
-    
     logger.info(f"Feature plotting completed. Plots saved in: {plots_path}")
     
-    # Return summary statistics
-    summary_stats = {}
-    for feature in features:
-        if feature in df.columns:
-            # Calculate stats after averaging between sides
-            if 'side' in df.columns:
-                avg_df = df.groupby(['subject', 'current_slice_yz', 'segment_name'])[feature].mean().reset_index()
-            else:
-                avg_df = df
-                
-            summary_stats[feature] = {
-                'mean': avg_df[feature].mean(),
-                'std': avg_df[feature].std(),
-                'min': avg_df[feature].min(),
-                'max': avg_df[feature].max()
-            }
-    
-    return summary_stats
+    return None
 
 if __name__ == "__main__":
     import sys
