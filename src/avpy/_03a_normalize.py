@@ -157,6 +157,10 @@ def main(path="./", debug=False):
                 if max_voxel_value == 0:
                     continue
                 
+                if active_slice == -1 and np.count_nonzero(selected_y_slice) <= 3:
+                    logger.debug(f"Skipping small segment at slice {y}")
+                    continue
+                
                 active_slice += 1
                 previous_slice = active_slice - 1
                 

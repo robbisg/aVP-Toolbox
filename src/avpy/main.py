@@ -18,8 +18,6 @@ logging.basicConfig(
 # Define all available step modules with their names for better management
 STEP_MODULES = {
     'prep': _01_prep,
-    'segmentation_prep': _01a_segmentation_prep,
-    'affine_prep': _01b_affine_prep,
     'basics': _02_basics,
     'normalize': _03a_normalize,
     'resample': _03b_resample,

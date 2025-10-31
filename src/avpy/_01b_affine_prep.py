@@ -36,13 +36,13 @@ def fix_affine_orientation(img):
     data = img.get_fdata()
     center = center_of_mass(data != 0)
     
-    world_center =  affine[:3, :3] @ center
+    world_center =  center
     
-    affine[0, 3] = world_center[0]
-    affine[1, 3] = world_center[1]
-    affine[2, 3] = world_center[2]
-    
-    logger.info(f"Affine from {img.affine[:3, 3]} to {world_center}")
+    affine[0, 3] = world_center[0] * np.sign(affine[0, 0])
+    affine[1, 3] = world_center[1] * np.sign(affine[1, 1])
+    affine[2, 3] = world_center[2] * np.sign(affine[2, 2])
+
+    logger.debug(f"Affine from {img.affine[:3, 3]} to {world_center}")
     
     return affine
 
@@ -157,17 +157,17 @@ def process_affine_transformations(img):
     img = check_and_fix_sform_qform(img)
     
     # Step 2: Fix affine orientation
-    #fixed_affine = fix_affine_orientation(img)
-    #img = nib.Nifti1Image(img.get_fdata(), fixed_affine, img.header)
-    
+    fixed_affine = fix_affine_orientation(img)
+    img = nib.Nifti1Image(img.get_fdata(), fixed_affine, img.header)
+
     # Step 3: Resample to isotropic voxels if needed
     #img = resample_to_isotropic(img)
     
     # Step 4: Resample to target shape if needed  
-    img = resample_to_target_shape(img)
+    # img = resample_to_target_shape(img)
     
     # Step 5: Final validation
-    img = validate_affine_consistency(img)
+    # img = validate_affine_consistency(img)
     
     return img
 
