@@ -22,20 +22,27 @@ import os
 import nibabel as nib
 import numpy as np
 from nilearn import image
+from scipy.ndimage import center_of_mass
 import logging
 logger = logging.getLogger(__name__)
 
 NAME = "affine_prep"
 
 
-def fix_affine_orientation(img, target_translation=(-74.4, -60.6, -21.0)):
+def fix_affine_orientation(img):
     """Fix affine matrix orientation and translation."""
     affine = img.affine.copy()
     
-    # Adjust translation based on the sign of diagonal elements
-    affine[0, 3] = target_translation[0] * np.sign(affine[0, 0])  # x translation
-    affine[1, 3] = target_translation[1] * np.sign(affine[1, 1])  # y translation  
-    affine[2, 3] = target_translation[2] * np.sign(affine[2, 2])  # z translation
+    data = img.get_fdata()
+    center = center_of_mass(data != 0)
+    
+    world_center =  affine[:3, :3] @ center
+    
+    affine[0, 3] = world_center[0]
+    affine[1, 3] = world_center[1]
+    affine[2, 3] = world_center[2]
+    
+    logger.info(f"Affine from {img.affine[:3, 3]} to {world_center}")
     
     return affine
 
@@ -150,11 +157,11 @@ def process_affine_transformations(img):
     img = check_and_fix_sform_qform(img)
     
     # Step 2: Fix affine orientation
-    fixed_affine = fix_affine_orientation(img)
-    img = nib.Nifti1Image(img.get_fdata(), fixed_affine, img.header)
+    #fixed_affine = fix_affine_orientation(img)
+    #img = nib.Nifti1Image(img.get_fdata(), fixed_affine, img.header)
     
     # Step 3: Resample to isotropic voxels if needed
-    img = resample_to_isotropic(img)
+    #img = resample_to_isotropic(img)
     
     # Step 4: Resample to target shape if needed  
     img = resample_to_target_shape(img)

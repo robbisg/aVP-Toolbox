@@ -7,7 +7,7 @@ from pathlib import Path
 import sentry_sdk
 
 from avpy import _01_prep, _01a_segmentation_prep, _01b_affine_prep, _02_basics, _03a_normalize, \
-    _03b_resample, _03c_normalize, _05_doatlas, stats, _07_report
+    _03b_resample, _03c_normalize, _05_doatlas, _04_plot, _06_stats, _07_report
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -24,9 +24,9 @@ STEP_MODULES = {
     'normalize': _03a_normalize,
     'resample': _03b_resample,
     'normalize_stats': _03c_normalize,
+    'plot': _04_plot,
     'atlas': _05_doatlas,
-    'report': _07_report,
-    'stats': stats
+    'stats': _06_stats
 }
 
 def parse_steps_argument(steps_arg):

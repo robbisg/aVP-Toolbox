@@ -312,7 +312,7 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
     
     # Set default values for optional parameters
     if features is None:
-        features = ['Eccent', 'CSArea']
+        features = ['eccent', 'area']
     if sides is None:
         sides = ['r', 'l']
     if feature_colormaps is None:
@@ -331,7 +331,12 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
     path_map = op.join(path, maps_subdir)
     os.makedirs(path_map, exist_ok=True)
     
+<<<<<<< HEAD:src/avpy/stats.py
     results_fname = op.join(path, "{group}", results_subdir, results_filename)
+=======
+    results_fname = op.join(path, "{group}", "results", "CSA_slice_iso.xlsx")
+    map_name = "sub-group_feature-{feature}_group-{group}_side-{side}_on.nii.gz"
+>>>>>>> e2647319213d70e320f5c7cb6abba2637bf30ff6:src/avpy/_06_stats.py
     
     # Load atlas with error handling
     if atlas_path is None:
@@ -351,7 +356,6 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
     
     atlas = ni.load(atlas_path)
     atlas_data = atlas.get_fdata()
-    x_dim, y_dim, z_dim = atlas_data.shape
     n_slices = atlas.shape[1]
     
     bonferroni_value = p_value / n_slices
@@ -372,7 +376,7 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
     
     full_dataframe = pd.concat(dataframe, ignore_index=True)
     logger.info(f"Loaded data for {len(groups)} groups with {len(full_dataframe)} total samples")
-
+    logger.info(full_dataframe.columns)
     
     for feature in features:
         for side in sides:
@@ -381,8 +385,13 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
                 df = filter_dataframe(full_dataframe, 
                                       group=[group], 
                                       side=[side], 
+<<<<<<< HEAD:src/avpy/stats.py
                                       type=[image_type])        
                 df = apply_function(df, keys=aggregation_keys, 
+=======
+                                      image_type=[image_type])        
+                df = apply_function(df, keys=['original_slice_yz'], 
+>>>>>>> e2647319213d70e320f5c7cb6abba2637bf30ff6:src/avpy/_06_stats.py
                                     attr=feature, fx=lambda x: x.mean(0))
                 
                 nerve_map = create_nerve_map(df, feature, atlas_path, background_threshold)
@@ -403,23 +412,26 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
                 
     ###################################################################################
     # 3) Tests
-
-
     for feature in features:
         for side in sides:
                     
             df = filter_dataframe(full_dataframe, 
                                   side=[side], 
-                                  type=[image_type])        
+                                  image_type=[image_type])        
             
             nerve_map_t = np.zeros((atlas.shape[0], atlas.shape[1], atlas.shape[2]))
             nerve_map_p = np.zeros((atlas.shape[0], atlas.shape[1], atlas.shape[2]))
             
             for y in range(n_slices):
                 
+<<<<<<< HEAD:src/avpy/stats.py
                 slice_filter = {slice_column: [y+1]}
                 df_slice_a = filter_dataframe(df, group=[dataset_a], **slice_filter)
                 df_slice_b = filter_dataframe(df, group=[dataset_b], **slice_filter)
+=======
+                df_slice_a = filter_dataframe(df, current_slice_yz=[y+1], group=[dataset_a])
+                df_slice_b = filter_dataframe(df, current_slice_yz=[y+1], group=[dataset_b])
+>>>>>>> e2647319213d70e320f5c7cb6abba2637bf30ff6:src/avpy/_06_stats.py
                 
                 t, p = ttest_ind(df_slice_a[feature].values, 
                                  df_slice_b[feature].values)
@@ -459,9 +471,13 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
             df = filter_dataframe(full_dataframe, 
                                   group=[group], 
                                   side=[side], 
-                                  type=[image_type])        
+                                  image_type=[image_type])        
             df = apply_function(df, 
+<<<<<<< HEAD:src/avpy/stats.py
                                 keys=aggregation_keys + ['subject_id'], 
+=======
+                                keys=['original_slice_yz', 'subject'], 
+>>>>>>> e2647319213d70e320f5c7cb6abba2637bf30ff6:src/avpy/_06_stats.py
                                 attr=feature, 
                                 fx=lambda x: x.mean(0))
             
@@ -499,7 +515,7 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
             df = filter_dataframe(full_dataframe, 
                                   group=[group], 
                                   side=[side], 
-                                  type=[image_type])        
+                                  image_type=[image_type])        
             df_mean = apply_function(df, 
                                 keys=aggregation_keys, 
                                 attr=feature, 
@@ -521,13 +537,22 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
             
 
     ###################################################################################
+<<<<<<< HEAD:src/avpy/stats.py
     # 3) Plot different values and statistical comparisons
+=======
+    # 3) Plot different values
+    extension_fig = 'png'
+>>>>>>> e2647319213d70e320f5c7cb6abba2637bf30ff6:src/avpy/_06_stats.py
 
     for feature in features:
                 
-        df = filter_dataframe(full_dataframe, type=[image_type])        
+        df = filter_dataframe(full_dataframe, image_type=[image_type])        
         df = apply_function(df, 
+<<<<<<< HEAD:src/avpy/stats.py
                             keys=[slice_column, 'group', 'subject_id'], 
+=======
+                            keys=['current_slice_yz', 'group', 'subject'], 
+>>>>>>> e2647319213d70e320f5c7cb6abba2637bf30ff6:src/avpy/_06_stats.py
                             attr=feature, 
                             fx=lambda x: x.mean(0))
         
@@ -539,9 +564,14 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
         
         for y in range(n_slices):
             
+<<<<<<< HEAD:src/avpy/stats.py
             slice_filter = {slice_column: [y+1]}
             df_slice_a = filter_dataframe(df, group=[dataset_a], **slice_filter)
             df_slice_b = filter_dataframe(df, group=[dataset_b], **slice_filter)
+=======
+            df_slice_a = filter_dataframe(df, current_slice_yz=[y+1], group=[dataset_a])
+            df_slice_b = filter_dataframe(df, current_slice_yz=[y+1], group=[dataset_b])
+>>>>>>> e2647319213d70e320f5c7cb6abba2637bf30ff6:src/avpy/_06_stats.py
             
             t, p = ttest_ind(df_slice_a[feature].values, 
                              df_slice_b[feature].values)
@@ -666,7 +696,16 @@ def main(path="./", dataset_a="HC", dataset_b="PTS", debug=False, config_file=No
             path=path,
             dataset_a=dataset_a, 
             dataset_b=dataset_b,
+<<<<<<< HEAD:src/avpy/stats.py
             config=config,
+=======
+            #features=['Eccent', 'CSArea'],
+            sides=['r', 'l'],
+            image_type='normalized',
+            p_value=0.05,
+            correction_method='bonferroni',
+            generate_figures=True,
+>>>>>>> e2647319213d70e320f5c7cb6abba2637bf30ff6:src/avpy/_06_stats.py
             debug=debug
         )
         
