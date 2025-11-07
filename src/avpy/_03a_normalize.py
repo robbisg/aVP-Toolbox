@@ -108,7 +108,7 @@ def main(path="./", debug=False):
         for side_idx, side in enumerate(sides):
             fname = os.path.join(inPath, subject, f'on_{side}')
             
-            logger.info(f"Analyzing {subject} - on_{side}")
+            logger.info(f"Processing {subject} side: {side}")
                     
             if not os.path.exists(f"{fname}.nii.gz"):
                 logger.error(f"could not find: {fname}.nii.gz")
@@ -143,10 +143,16 @@ def main(path="./", debug=False):
             n_total_area = 0
             partial_distance = 0
             factor = 1
-
+            
+            nonzero_elements = np.nonzero(nifti_data)
+            y_min = np.min(nonzero_elements[1])
+            y_max = np.max(nonzero_elements[1])
+            
+            # Reverse the order to start from orbital to cranial
+            slice_to_process = np.arange(y_min, y_max + 1)[::-1]
             # Process each slice along y axis
-            for y in range(y_dim):
-                
+            for y in slice_to_process:
+
                 # Take xz "slice", eliminating other ys
                 selected_y_slice = nifti_data[:, y, :]
                 
@@ -157,9 +163,22 @@ def main(path="./", debug=False):
                 if max_voxel_value == 0:
                     continue
                 
-                if active_slice == -1 and np.count_nonzero(selected_y_slice) <= 3:
-                    logger.debug(f"Skipping small segment at slice {y}")
+                if max_voxel_value == 1 and np.count_nonzero(selected_y_slice) <= 13 \
+                    and y + 3 >= y_max:
+                    logger.warning(f"Skipping small segment at slice {y}")
                     continue
+                
+                if max_voxel_value == 16 and np.count_nonzero(selected_y_slice) <= 15 \
+                    and y - 3 <= y_min:
+                    logger.warning(f"Skipping small segment at slice {y}")
+                    continue
+                
+                # Remove last segment if too small
+                if active_slice >= 0 and np.count_nonzero(selected_y_slice) <= 3:
+                    logger.warning(f"Removing small segment at slice {y}")
+                    # Remove last added slice data
+                    cc_value.pop()
+                    active_slice -= 1
                 
                 active_slice += 1
                 previous_slice = active_slice - 1
@@ -187,11 +206,11 @@ def main(path="./", debug=False):
                 props = measure.regionprops(labeled_image)
                 
                 if len(props) == 0:
-                    logger.info(f"WARNING: No region found in slice {y}")
+                    logger.warning(f"No region found in slice {y}")
                     continue
                 
                 if len(props) > 1:
-                    logger.info(f"WARNING: Found {len(props)} region found in slice {y}, using the largest one.")
+                    logger.warning(f"Found {len(props)} region found in slice {y}, using the largest one.")
                     # Use the largest region
                     props = sorted(props, key=lambda p: p.area, reverse=True)[:1]
                     # Remove smaller regions
@@ -270,7 +289,7 @@ def main(path="./", debug=False):
                     slice_data['segment_name'] = segment_types[int(max_voxel_value)]
                 except Exception as e:
                     sentry_sdk.capture_exception(e)
-                    logger.info(f"ERROR: {e}")
+                    logger.error(f"{e}")
                     continue
                 
                 slice_data['max_voxel_value'] = max_voxel_value
@@ -286,6 +305,9 @@ def main(path="./", debug=False):
                 slice_data['area']    = area
                 slice_data['eccent']  = props[0].eccentricity
                 
+                if slice_data['eccent'] == 0:
+                    logger.warning(f"Eccentricity is zero at slice {y}.")
+                
                 slice_data['average_area'] = 0
                 slice_data['partial_length'] = 0
                 slice_data['total_length'] = 0
@@ -297,6 +319,8 @@ def main(path="./", debug=False):
                 slice_data['length_on_upsampled'] = length_optical_nerve_gap
                 slice_data['int_distance'] = n_slices
                 slice_data['int_upsampled_distance'] = n_slices_upsampled
+                
+                slice_data['voxel_area'] = props[0].area
                 
                 cc_value.append(slice_data)
                 
@@ -324,16 +348,16 @@ def main(path="./", debug=False):
             dataframe.append(sliceframe)       
             
             # Build the linearized volume
-            logger.info("Nerve Interpolation...")
+            logger.debug("Nerve Interpolation...")
             
             upsampled_slices = sliceframe['slice_gap_upsampled'].values + resolution_increase
             total_slices_upsampled = upsampled_slices.sum() + 10
             
             if total_slices_upsampled >= max_slices:
-                logger.error(f"ERROR: Total upsampled slices exceed {max_slices} in subject {subject} side {side}!")
+                logger.error(f"Total upsampled slices exceed {max_slices} in subject {subject} side {side}!")
                 logger.error("Please increase the number of max_slices in the code.")
                 sentry_sdk.capture_message(
-                    f"ERROR: Total upsampled slices exceed {max_slices} in subject {subject} side {side}!"
+                    f"Total upsampled slices exceed {max_slices} in subject {subject} side {side}!"
                 )
                 max_slices = total_slices_upsampled + 10
             
@@ -382,7 +406,7 @@ def main(path="./", debug=False):
             hole_list = []
             hole_counter = 0
             
-            logger.info("Hole interpolation...")
+            logger.debug("Hole interpolation...")
             
             for slice_idx in range(1, max_slices-2):
                 if (np.max(hres_linear_image[:, slice_idx+1, :]) == 0 and
@@ -393,7 +417,7 @@ def main(path="./", debug=False):
                     hres_linear_image[:, slice_idx+1, :] = hres_linear_image[:, slice_idx+2, :]
                 
             # Create NIfTI image for linearized data
-            logger.info("Disk writing...")
+            logger.debug("Disk writing...")
             
             # Create header for the new image
             new_affine = nifti_img.affine.copy()
@@ -423,7 +447,7 @@ def main(path="./", debug=False):
 
             check_range = np.zeros(normalized_n_slices, dtype=int)
             
-            logger.info("Normalization...")
+            logger.debug("Normalization...")
             
             for ii in range(normalized_n_slices):
                 # Figure out slice in aligned that needs to go 
@@ -463,7 +487,7 @@ def main(path="./", debug=False):
     
     if not debug:
         # Remove unnecessary columns from the dataframe
-        to_be_dropped = ['distance', 'slice_gap', 'slice_gap_upsampled', 
+        to_be_dropped = ['distance', 'slice_gap', 'slice_gap_upsampled',
                         'length_on_upsampled', 'int_distance', 'int_upsampled_distance']
         dataframe.drop(columns=to_be_dropped, 
                        inplace=True)

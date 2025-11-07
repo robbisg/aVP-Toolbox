@@ -41,7 +41,7 @@ atlas_name = "aVP-24_label.nii.gz"
 def create_nerve_map(dataframe, feature):
     
     background_image = ni.load(op.join(atlas_dir, atlas_name))
-    atlas = background_image.get_fdata()
+    atlas = background_image.get_fdata()[:, ::-1, :]
     n_slices = atlas.shape[1]
     
     nerve_map = np.zeros((atlas.shape[0],
@@ -61,11 +61,11 @@ def plot_nerve(nerve_map,
                colormap=pl.cm.magma,
                title="Nerve Map",
                vlim=None,
-               figsize=(7, 18)
+               figsize=(10, 16)
                ):
     
     background_image = ni.load(op.join(atlas_dir, atlas_name))
-    background_data = background_image.get_fdata()
+    background_data = background_image.get_fdata()[:, ::-1, :]
     resolution = background_image.header['pixdim'][1]
     x_dim = background_data.shape[0]
     y_dim = background_data.shape[1]
@@ -166,7 +166,7 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
     do_figures = generate_figures
     
     # Create output directory
-    path_map = op.join(path, "maps")
+    path_map = op.join(path, f"maps_{dataset_a}-{dataset_b}")
     os.makedirs(path_map, exist_ok=True)
     
     results_fname = op.join(path, "{group}", "results", "CSA_slice_iso.xlsx")
@@ -228,7 +228,7 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
                 
                 if do_figures:
                     pl.figure()
-                    pl.imshow(nerve_map[:,:,35], cmap=pl.cm.magma)
+                    pl.imshow(nerve_map[:, ::-1, 35], cmap=pl.cm.magma)
                     pl.title(f"Group: {group} - Side: {side} - Feature: {feature}")
                     pl.colorbar()
                     
@@ -257,8 +257,10 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
                 nerve_map_p[:, y, :][atlas_data[:, y, :] != 0] = p
                 
                 threshold_image = nerve_map_t * (nerve_map_p < bonferroni_value)
-                
-            
+
+            nerve_map_t = np.flip(nerve_map_t, axis=1)
+            nerve_map_p = np.flip(nerve_map_p, axis=1)
+
             map_fname = map_name.format(group='t',
                                         side=side, 
                                         feature=feature)
@@ -377,6 +379,9 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
             
             ts.append(t)
             ps.append(p)
+            
+        nerve_map_t = np.flip(nerve_map_t, axis=1)
+        nerve_map_p = np.flip(nerve_map_p, axis=1)
             
         dfs[f"{feature}_t"] = ts
         dfs[f"{feature}_p"] = ps

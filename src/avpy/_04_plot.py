@@ -37,6 +37,8 @@ import logging
 logger = logging.getLogger(__name__)
 NAME = "plot_features"
 
+plt.style.use('seaborn-v0_8')
+
 def create_feature_lineplot(df, feature, x_axis='current_slice_yz', group_by='subject', 
                             image_type='linearized', output_path=None):
     """
@@ -52,175 +54,138 @@ def create_feature_lineplot(df, feature, x_axis='current_slice_yz', group_by='su
     logger.debug(f"Creating line plot for feature: {feature}")
     
     plot_df = df.copy()
-    plot_df = plot_df[plot_df['image_type'] == image_type]
+    #plot_df = plot_df[plot_df['image_type'] == image_type]
+    
+    # TODO: A possible implementation is to extract the line from each subject and
+    # produce a single plot and a total plot.
     
     if len(plot_df) == 0:
         logger.warning(f"No data available for {feature}")
         return
     
     
-    # Plot single subject l/r lines
-    fig, ax = plt.subplots(figsize=(16, 8))
+    figure = sns.relplot(data=plot_df, x=x_axis, y=feature, hue=group_by, 
+                         col='side', row='image_type', kind='line', alpha=0.3,
+                         color='dimgray', height=4, aspect=2)
+        
+    #plt.show()
+   
+    # Add average line to each subplot in the seaborn figure
+    for ax in figure.axes.flat:
+        # Get data for this subplot
+        subplot_data = ax.lines[0].get_data() if ax.lines else ([], [])
+        if len(subplot_data[0]) == 0:
+            continue
+        
+        # Calculate average across subjects for each x position
+        x_vals = []
+        y_vals = []
+        for line in ax.lines:
+            x, y = line.get_data()
+            x_vals.extend(x)
+            y_vals.extend(y)
+        
+        if x_vals:
+            df_temp = pd.DataFrame({'x': x_vals, 'y': y_vals})
+            avg = df_temp.groupby('x')['y'].mean().reset_index()
+            ax.plot(avg['x'], avg['y'], linewidth=3, color='darkblue', label='Average')
+
+    fname = os.path.join(output_path, 'plots', f'sub-all_feature-{feature}_desc-allsubjects_plot.png')
+    figure.savefig(fname, dpi=300)
+
     
     # Plot individual subjects as transparent lines
     subjects = plot_df[group_by].unique()
     logger.debug(f"Plotting {len(subjects)} subjects")
     
-    for subject in subjects:
-        subject_data = plot_df[plot_df[group_by] == subject]
-        if len(subject_data) > 0:
-            ax.plot(subject_data[x_axis], subject_data[feature], 
-                   alpha=0.3, linewidth=1, color='gray')
-    
-    # Calculate and plot average line
-    avg_data = plot_df.groupby('plot_x')[feature].agg(['mean', 'std']).reset_index()
-    
-    # Plot average line with seaborn
-    ax.plot(avg_data['plot_x'], avg_data['mean'], 
-           linewidth=4, color='darkblue', label='Average', 
-           marker='o', markersize=6, markerfacecolor='white', 
-           markeredgecolor='darkblue', markeredgewidth=2)
-    
-    
-    
-    
-    # Average between sides for each subject and slice
-    if 'side' in plot_df.columns:
-        logger.debug("Averaging between left and right sides")
-        plot_df = plot_df.groupby([group_by, x_axis])[feature].mean().reset_index()
-    else:
-        # If no side column, just ensure we have the right grouping
-        plot_df = plot_df.groupby([group_by, x_axis])[feature].mean().reset_index()
-    
-    # Get segment information for x-axis separation
+    n_segments = plot_df['segment_name'].nunique()
     segments = plot_df['segment_name'].unique()
-    segments = [seg for seg in segments if pd.notna(seg)]  # Remove NaN segments
-    segments = sorted(segments)  # Sort for consistent ordering
-    logger.debug(f"Found segments: {segments}")
+    colormap = sns.color_palette('husl', n_colors=n_segments)
     
-    # Create a continuous x-axis position for plotting
-    plot_df_with_x = []
-    segment_info = {}
-    current_x = 0
-    
-    for i, segment in enumerate(segments):
-        segment_data = plot_df[plot_df['segment_name'] == segment].copy()
-        if len(segment_data) == 0:
-            continue
-            
-        # Sort by original slice position
-        segment_data = segment_data.sort_values(x_axis)
-        unique_slices = sorted(segment_data[x_axis].unique())
+    for subject in subjects:
         
-        # Map original slice positions to continuous x positions
-        slice_to_x = {slice_pos: current_x + j for j, slice_pos in enumerate(unique_slices)}
-        segment_data['plot_x'] = segment_data[x_axis].map(slice_to_x)
-        
-        # Store segment info for later use
-        segment_info[segment] = {
-            'start': current_x,
-            'end': current_x + len(unique_slices) - 1,
-            'center': current_x + (len(unique_slices) - 1) / 2
-        }
-        
-        plot_df_with_x.append(segment_data)
-        current_x += len(unique_slices) + 3  # Add gap between segments
-    
-    if not plot_df_with_x:
-        logger.warning(f"No valid segment data found for {feature}")
-        return
-        
-    plot_df = pd.concat(plot_df_with_x, ignore_index=True)
-    
-    # Set up the plot with seaborn style
-    sns.set_palette("husl")
+        figure_lr, ax_lr = plt.subplots(2, 2, figsize=(16, 8))
+        figure_avg, ax_avg = plt.subplots(2, 1, figsize=(10, 6))
 
-    
-    # Add vertical lines to separate segments
-    segment_boundaries = []
-    for i, segment in enumerate(segments[1:], 1):  # Skip first segment
-        prev_segment = segments[i-1]
-        boundary = (segment_info[prev_segment]['end'] + segment_info[segment]['start']) / 2
-        segment_boundaries.append(boundary)
-        ax.axvline(x=boundary, color='red', linestyle='--', alpha=0.6, linewidth=2)
-    
-    # Customize x-axis with segment labels
-    segment_centers = [info['center'] for info in segment_info.values()]
-    ax.set_xticks(segment_centers)
-    ax.set_xticklabels(segments, fontsize=12, fontweight='bold')
-    ax.set_xlabel('Anatomical Segments', fontsize=14, fontweight='bold')
-    
-    # Add secondary x-axis showing slice numbers
-    ax2 = ax.twiny()
-    
-    # Create slice position labels (show a few key positions)
-    slice_positions = []
-    slice_labels = []
-    
-    for segment in segments:
-        if segment in segment_info:
-            segment_data = plot_df[plot_df['segment_name'] == segment]
-            if len(segment_data) > 0:
-                # Show start, middle, and end slice for each segment
-                start_x = segment_info[segment]['start']
-                end_x = segment_info[segment]['end']
-                mid_x = segment_info[segment]['center']
-                
-                start_slice = segment_data[segment_data['plot_x'] == start_x][x_axis].iloc[0] if len(segment_data[segment_data['plot_x'] == start_x]) > 0 else None
-                end_slice = segment_data[segment_data['plot_x'] == end_x][x_axis].iloc[0] if len(segment_data[segment_data['plot_x'] == end_x]) > 0 else None
-                
-                if start_slice is not None:
-                    slice_positions.append(start_x)
-                    slice_labels.append(f'{int(start_slice)}')
-                if end_slice is not None and end_x != start_x:
-                    slice_positions.append(end_x)
-                    slice_labels.append(f'{int(end_slice)}')
-    
-    ax2.set_xlim(ax.get_xlim())
-    if slice_positions:
-        ax2.set_xticks(slice_positions)
-        ax2.set_xticklabels(slice_labels, fontsize=10, alpha=0.7)
-        ax2.set_xlabel('Slice Position', fontsize=12, alpha=0.7)
-    
-    # Customize plot appearance
-    ax.set_ylabel(feature.replace('_', ' ').title(), fontsize=14, fontweight='bold')
-    ax.set_title(f'{feature.replace("_", " ").title()} Along Optic Nerve Segments', 
-                fontsize=16, fontweight='bold', pad=20)
-    ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
-    
-    # Customize legend
-    handles, labels = ax.get_legend_handles_labels()
-    # Remove duplicate "Individual subjects" labels
-    unique_labels = []
-    unique_handles = []
-    for handle, label in zip(handles, labels):
-        if label not in unique_labels:
-            unique_labels.append(label)
-            unique_handles.append(handle)
-    
-    ax.legend(unique_handles, unique_labels, loc='upper right', fontsize=12, 
-             frameon=True, fancybox=True, shadow=True)
-    
-    # Add segment background colors for better visualization
-    colors = plt.cm.Set3(np.linspace(0, 1, len(segments)))
-    for i, (segment, info) in enumerate(segment_info.items()):
-        ax.axvspan(info['start'] - 1, info['end'] + 1, 
-                  alpha=0.1, color=colors[i], zorder=0)
+        for t, img_type in enumerate(['linearize', 'normalized']):
         
-        # Add segment labels at the top
-        ax.text(info['center'], ax.get_ylim()[1] * 0.95, segment, 
-               ha='center', va='top', fontweight='bold', fontsize=11,
-               bbox=dict(boxstyle='round,pad=0.3', facecolor=colors[i], alpha=0.7))
+            to_be_averaged = []
+
+            for s, side in enumerate(['l', 'r']):
+                            
+                data = plot_df[(plot_df[group_by] == subject) & 
+                                (plot_df['side'] == side) & 
+                                (plot_df['image_type'] == img_type)]
+                if data.empty:
+                    continue
+                    
+                x = data[x_axis]
+                y = data[feature]
+
+                to_be_averaged.append([x, y])
+                
+                ax_lr[t, s].plot(x, y, linewidth=1, color='salmon')
+                ax_lr[t, s].set_title(f'{feature} in {subject} {img_type} image - {side}', fontsize=14)
+
+                ax_lr[t, s].set_xlabel(x_axis, fontsize=12)
+                ax_lr[t, s].set_ylabel(feature, fontsize=12)
+
+                # Separate segments with vertical lines
+                segment_positions = data['segment_name'].unique()
+                segment_positions = [seg for seg in segment_positions if pd.notna(seg)]
+                segment_positions = sorted(segment_positions)
+                
+                segment_boundaries = []
+                for i, segment in enumerate(segment_positions[1:], 1):  # Skip first segment
+                    prev_segment = segment_positions[i-1]
+                    boundary = data[data['segment_name'] == segment][x_axis].min()
+                    segment_boundaries.append(boundary)
+                    ax_lr[t, s].axvline(x=boundary, color='gray', alpha=0.6, linewidth=.5)
+
+            
+            min_elements = np.min([len(item[1]) for item in to_be_averaged])
+            arg_min = np.argmin([len(item[1]) for item in to_be_averaged])
+            x_avg = to_be_averaged[arg_min][0][:min_elements]
+            y_avg = np.mean([item[1][:min_elements] for item in to_be_averaged], axis=0)
+
+            ax_avg[t].plot(x_avg, y_avg, linewidth=1, color='salmon')
+            ax_avg[t].set_title(f'{feature} in {subject} {img_type} image - Average Both Sides', fontsize=14)
+            ax_avg[t].set_xlabel(x_axis, fontsize=12)
+            ax_avg[t].set_ylabel(feature, fontsize=12)
+
+        ## Separate segments with vertical lines
+        #segment_positions = plot_df['segment_name'].unique()
+        #segment_positions = [seg for seg in segment_positions if pd.notna(seg)]
+        #segment_positions = sorted(segment_positions)
+        #segment_boundaries = []
+        #for i, segment in enumerate(segment_positions[1:], 1):  # Skip first
+        #    prev_segment = segment_positions[i-1]
+        #    boundary = plot_df[plot_df['segment_name'] == segment][x_axis].min()
+        #    segment_boundaries.append(boundary)
+        #    ax_avg.axvline(x=boundary, color='gray', alpha=0.6, linewidth=.5)
+        
+        figure_lr.tight_layout()
+        figure_avg.tight_layout()
+        
+        # Save individual subject plots
+        individual_plots_path = None
+        if output_path:
+            base_dir = os.path.dirname(output_path)
+            subject_ = str(subject).zfill(2)
+            individual_plots_path = os.path.join(base_dir, 'plots', f'{subject_}')
+            os.makedirs(individual_plots_path, exist_ok=True)
+       
+            figure_lr.savefig(os.path.join(individual_plots_path, 
+                            f"sub-{subject}_feature-{feature}_desc-singleside_plot.png"), 
+                            dpi=300, bbox_inches='tight', facecolor='white')
+            figure_avg.savefig(os.path.join(individual_plots_path, 
+                            f"sub-{subject}_feature-{feature}_desc-avg_plot.png"), 
+                            dpi=300, bbox_inches='tight', facecolor='white')
+            logger.debug(f"Saved individual plots for subject {subject} in {individual_plots_path}")
+        
+        plt.close('all')        
     
-    plt.tight_layout()
-    
-    # Save plot if path provided
-    if output_path:
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        plt.savefig(output_path, dpi=300, bbox_inches='tight', facecolor='white')
-        logger.info(f"Plot saved to: {output_path}")
-    
-    return fig
+    return
 
 def main(path="./", features=['area', 'eccent'], debug=False, image_type='linearize'):
     """
@@ -283,13 +248,13 @@ def main(path="./", features=['area', 'eccent'], debug=False, image_type='linear
             logger.info(f"Generating plot for feature: {feature}")
             
             # Single clean plot with segments separated
-            output_file = os.path.join(plots_path, f'{feature}_segments.png')
             create_feature_lineplot(
                 df, feature, image_type=im_type,
-                output_path=output_file
+                output_path=path
             )
         
     logger.info(f"Feature plotting completed. Plots saved in: {plots_path}")
+    
     
     return None
 

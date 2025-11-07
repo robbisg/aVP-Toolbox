@@ -191,7 +191,9 @@ def main(path="./", debug=False):
     
     study_path = path
     proc_path = os.path.join(study_path, "data", "proc")
-    
+
+    targeted_files = ['on_l.nii.gz', 'on_r.nii.gz']
+
     if not os.path.exists(proc_path):
         logger.error(f"Processed data directory not found: {proc_path}")
         return
@@ -214,7 +216,7 @@ def main(path="./", debug=False):
         
         # Process all NIfTI files in subject directory
         for filename in os.listdir(sbj_dir):
-            if filename.endswith('.nii.gz'):
+            if filename in targeted_files and (filename.endswith('.nii') or filename.endswith('.nii.gz')):
                 input_path = os.path.join(sbj_dir, filename)
                 output_path = input_path  # Process in-place
                 
