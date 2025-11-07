@@ -40,14 +40,19 @@ NAME = "prep"
 
 def _00_sanity_check(path='/.', debug=False):
     # Check if all affine between subjects are consistent
-    logger.setLevel(level=logging.DEBUG) 
+    
+    if debug:
+        logger.setLevel(level=logging.DEBUG) 
     
     study_path = path
-    in_path = os.path.join(study_path, "data", "orig")    
+    in_path = os.path.join(study_path, "data", "orig")
     
-    with open(os.path.join(study_path, 'data', 'sbj.list'), 'r') as fileID:
-        subjects = [line.strip() for line in fileID]
-    
+    if not os.path.exists(os.path.join(study_path, 'data', 'sbj.list')):
+        subjects = os.listdir(in_path)
+    else:    
+        with open(os.path.join(study_path, 'data', 'sbj.list'), 'r') as fileID:
+            subjects = [line.strip() for line in fileID]
+        
     affine_list = []
     # Process each subject
     for subject in subjects:
@@ -108,7 +113,7 @@ def _00_sanity_check(path='/.', debug=False):
     logger.info("Sanity check completed.")
     
     affine_report = pd.DataFrame(affine_list)
-    report_path = os.path.join(study_path, 'results', 'affine_sanity_check.csv')
+    report_path = os.path.join(study_path, 'affine_sanity_check.csv')
     affine_report.to_csv(report_path, index=False)
     logger.info(f"Affine sanity check report saved to {report_path}")
     
