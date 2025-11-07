@@ -47,7 +47,7 @@ def process_images(study_path, base_image, debug=True):
             output_dir = os.path.dirname(input_file)
             output_file = os.path.join(output_dir, f"{input_basename}_iso06.nii.gz")
             
-            logger.info(f"Processing: {input_file}")
+            logger.info(f"Resampling: {input_file}")
             logger.debug(f"Output basename: {input_basename}")
             logger.debug(f"Output directory: {output_dir}")
             
@@ -98,7 +98,7 @@ def process_images(study_path, base_image, debug=True):
             
             # Save the resampled image
             nib.save(final_img, output_file)
-            logger.info(f"Saved: {output_file}")
+            logger.debug(f"Saved: {output_file}")
     
     if debug:
         
@@ -121,11 +121,11 @@ def main(path="./", debug=False):
         logging.basicConfig(level=logging.DEBUG)    
     
     # Process linearized images
-    logger.info("Processing linearized images...")
+    logger.info("Resampling linearized images...")
     process_images(study_path, "_linearize_4bc.nii.gz", debug=debug)
     
     # Process normalized images
-    logger.info("Processing normalized images...")
+    logger.info("Resampling normalized images...")
     process_images(study_path, "_normalized_4bc.nii.gz", debug=debug)
 
 if __name__ == "__main__":
