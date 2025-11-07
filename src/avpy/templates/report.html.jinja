@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            width: 250px;
+            background-color: #2c3e50;
+            padding-top: 20px;
+            overflow-y: auto;
+        }
+        .sidebar .nav-link {
+            color: #ecf0f1;
+            padding: 15px 20px;
+            border-left: 4px solid transparent;
+            transition: all 0.3s;
+        }
+        .sidebar .nav-link:hover {
+            background-color: #34495e;
+            border-left-color: #3498db;
+        }
+        .sidebar .nav-link.active {
+            background-color: #34495e;
+            border-left-color: #3498db;
+            font-weight: bold;
+        }
+        .main-content {
+            margin-left: 250px;
+            padding: 40px;
+        }
+        .content-card {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .info-table {
+            margin-top: 20px;
+        }
+        .info-table td {
+            padding: 8px;
+        }
+        .info-table td:first-child {
+            font-weight: bold;
+            color: #2c3e50;
+            width: 40%;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 30px;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+        }
+        .sidebar-header {
+            color: #ecf0f1;
+            padding: 0 20px 20px 20px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border-bottom: 1px solid #34495e;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar Menu -->
+    <div class="sidebar">
+        <div class="sidebar-header">aVP-Toolbox Report</div>
+        <nav class="nav flex-column">
+            {% for subject in subjects %}
+            <a class="nav-link {% if loop.first %}active{% endif %}" 
+               href="#{{ subject.id }}" 
+               onclick="showSubject('{{ subject.id }}')">
+                {{ subject.name }}
+            </a>
+            {% endfor %}
+        </nav>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        {% for subject in subjects %}
+        <div id="{{ subject.id }}" class="subject-content" style="{% if not loop.first %}display: none;{% endif %}">
+            <h1>{{ subject.name }}</h1>
+            
+            <!-- NIfTI Image Viewer -->
+            <div class="content-card">
+                <h2>📷 Image Viewer</h2>
+                {{ subject.image | safe }}
+            </div>
+            
+            <!-- Statistics Plot -->
+            <div class="content-card">
+                <h2>📊 Statistics</h2>
+                {{ subject.stats_plot | safe }}
+            </div>
+            
+            <!-- Text Information -->
+            <div class="content-card">
+                <h2>ℹ️ Information</h2>
+                <table class="info-table table table-borderless">
+                    {% for key, value in subject.info.items() %}
+                    <tr>
+                        <td>{{ key }}:</td>
+                        <td>{{ value }}</td>
+                    </tr>
+                    {% endfor %}
+                </table>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <script>
+        function showSubject(subjectId) {
+            // Hide all subjects
+            document.querySelectorAll('.subject-content').forEach(el => {
+                el.style.display = 'none';
+            });
+            
+            // Show selected subject
+            document.getElementById(subjectId).style.display = 'block';
+            
+            // Update active menu item
+            document.querySelectorAll('.sidebar .nav-link').forEach(el => {
+                el.classList.remove('active');
+            });
+            event.target.classList.add('active');
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
