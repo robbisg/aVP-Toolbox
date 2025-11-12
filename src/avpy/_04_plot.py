@@ -89,6 +89,12 @@ def create_feature_lineplot(df, feature, x_axis='current_slice_yz', group_by='su
             df_temp = pd.DataFrame({'x': x_vals, 'y': y_vals})
             avg = df_temp.groupby('x')['y'].mean().reset_index()
             ax.plot(avg['x'], avg['y'], linewidth=3, color='darkblue', label='Average')
+        
+        # Change title font size
+        ax.set_title(ax.get_title(), fontsize=16)
+        ax.set_xlabel(x_axis, fontsize=14)
+        ax.set_ylabel(feature, fontsize=14)
+        #ax.legend()
 
     fname = os.path.join(output_path, 'plots', f'sub-all_feature-{feature}_desc-allsubjects_plot.png')
     figure.savefig(fname, dpi=300)
@@ -187,7 +193,7 @@ def create_feature_lineplot(df, feature, x_axis='current_slice_yz', group_by='su
     
     return
 
-def main(path="./", features=['area', 'eccent'], debug=False, image_type='linearize'):
+def main(path="./", features=['area'], debug=False, image_type='linearize'):
     """
     Main function to generate feature plots from CSA_slice.xlsx
     
