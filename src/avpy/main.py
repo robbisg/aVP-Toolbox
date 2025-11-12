@@ -153,6 +153,11 @@ def main():
             # Ensure atlas step is run only if datasets are provided
             logger.warning("Skipping 'atlas' step. Run it separately if needed.")
             steps_to_run.remove('atlas')
+            
+        if 'report' in steps_to_run and len(steps_to_run) > 1:
+            # Ensure report step is run only if datasets are provided
+            logger.warning("Skipping 'report' step. Run it separately if needed.")
+            steps_to_run.remove('report')
                 
         # Run the processing steps
         for step_name in steps_to_run:
