@@ -204,7 +204,6 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
     
     full_dataframe = pd.concat(dataframe, ignore_index=True)
     logger.info(f"Loaded data for {len(groups)} groups with {len(full_dataframe)} total samples")
-    logger.info(full_dataframe.columns)
     
     for feature in features:
         for side in sides:
@@ -398,7 +397,7 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
                                 vlim=(-5, 5))
             
             fig.savefig(op.join(path_map, 
-                                    f"sub-group_feature-{feature}_stats-ttestfdr_side-both_on.png"))
+                                f"sub-group_feature-{feature}_stats-ttestfdr_side-both_on.png"))
             
             
             fig, ax = plot_nerve(nerve_map_t,
@@ -409,7 +408,7 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
                                 vlim=(-5, 5))
 
             fig.savefig(op.join(path_map, 
-                                    f"sub-group_feature-{feature}_stats-ttestuncorrected_side-both_on.png"))        
+                                f"sub-group_feature-{feature}_stats-ttestuncorrected_side-both_on.png"))        
             
             
 
@@ -421,7 +420,7 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
                                 vlim=(-5, 5))
             
             fig.savefig(op.join(path_map,
-                                    f"sub-group_feature-{feature}_stats-ttestbonferroni_side-both_on.png"))
+                                f"sub-group_feature-{feature}_stats-ttestbonferroni_side-both_on.png"))
         
     # Save results and return dataframe
     output_file = op.join(path_map, "aVP_feature_stats.xlsx")
