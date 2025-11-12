@@ -36,7 +36,9 @@ NAME = "stats"
 # Initialize atlas paths
 parent_dir = op.dirname(op.dirname(op.dirname(op.abspath(__file__))))
 atlas_dir = op.join(parent_dir, "atlas")
-atlas_name = "aVP-24_label.nii.gz"
+atlas_name = "aVP-24_prob50.nii.gz"
+
+percentage_threshold = 50
 
 def create_nerve_map(dataframe, feature):
     
@@ -49,7 +51,7 @@ def create_nerve_map(dataframe, feature):
                           atlas.shape[2]))
     
     for y in range(n_slices):
-        nerve_map[:, y, :][atlas[:, y, :] != 0] = dataframe[feature].values[y]
+        nerve_map[:, y, :][atlas[:, y, :] >= percentage_threshold] = dataframe[feature].values[y]
         
     return nerve_map
 
@@ -176,7 +178,7 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
     atlas_path = op.join(atlas_dir, atlas_name)
     if not op.exists(atlas_path):
         # Fallback to local atlas
-        atlas_path = "aVP-24_label.nii"
+        atlas_path = "aVP-24_prob50.nii"
         logger.warning(f"Atlas not found at {atlas_path}, using fallback")
         
     if not op.exists(atlas_path):
@@ -252,9 +254,9 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
                 t, p = ttest_ind(df_slice_a[feature].values, 
                                  df_slice_b[feature].values)
                 
-                nerve_map_t[:, y, :][atlas_data[:, y, :] != 0] = t
-                nerve_map_p[:, y, :][atlas_data[:, y, :] != 0] = p
-                
+                nerve_map_t[:, y, :][atlas_data[:, y, :] >= percentage_threshold] = t
+                nerve_map_p[:, y, :][atlas_data[:, y, :] >= percentage_threshold] = p
+
                 threshold_image = nerve_map_t * (nerve_map_p < bonferroni_value)
 
             nerve_map_t = np.flip(nerve_map_t, axis=1)
@@ -328,11 +330,11 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
                                   side=[side], 
                                   image_type=[image_type])        
             df_mean = apply_function(df, 
-                                keys=['original_slice_yz'], 
+                                keys=['current_slice_yz'], 
                                 attr=feature, 
                                 fx=lambda x: x.mean(0))
             df_std = apply_function(df,
-                                keys=['original_slice_yz'],
+                                keys=['current_slice_yz'],
                                 attr=feature,
                                 fx=lambda x: x.std(0))
             
@@ -373,9 +375,9 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
             t, p = ttest_ind(df_slice_a[feature].values, 
                              df_slice_b[feature].values)
             
-            nerve_map_t[:, y, :][atlas_data[:, y, :] != 0] = t
-            nerve_map_p[:, y, :][atlas_data[:, y, :] != 0] = p
-            
+            nerve_map_t[:, y, :][atlas_data[:, y, :] >= percentage_threshold] = t
+            nerve_map_p[:, y, :][atlas_data[:, y, :] >= percentage_threshold] = p
+
             ts.append(t)
             ps.append(p)
             
@@ -421,6 +423,8 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
             
             fig.savefig(op.join(path_map,
                                 f"sub-group_feature-{feature}_stats-ttestbonferroni_side-both_on.png"))
+            
+            pl.close('all')
         
     # Save results and return dataframe
     output_file = op.join(path_map, "aVP_feature_stats.xlsx")
