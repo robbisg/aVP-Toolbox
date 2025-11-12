@@ -129,9 +129,11 @@ def main(path="./", debug=False):
     in sequence to maintain compatibility with the existing pipeline.
     """
     logger.info("Starting preparation pipeline...")
-    
-    logger.info("Step 0: Sanity check of affine ")
-    _00_sanity_check(path=path, debug=debug)
+    if debug:
+        logger.info("Step 0: Sanity check of affine ")
+        _00_sanity_check(path=path, debug=debug)
+    else:
+        logger.warning("Skipping sanity check of affine. Run with --debug to enable it.")
     
     # Step 1: Run segmentation preprocessing
     logger.info("Step 1: Running segmentation preprocessing...")
