@@ -162,23 +162,19 @@ def main(path="./", debug=False):
                 # Empty slice, go to the next
                 if max_voxel_value == 0:
                     continue
-                
-                if max_voxel_value == 1 and np.count_nonzero(selected_y_slice) <= 13 \
-                    and y + 3 >= y_max:
+
+                checked_area = np.count_nonzero(selected_y_slice) * x_resolution * z_resolution
+
+                if max_voxel_value == 1 and checked_area <= 9.5 \
+                    and y + 5 >= y_max:
+                    logger.warning(f"Skipping small segment at slice {y}")
+                    continue
+
+                if max_voxel_value == 16 and checked_area <= 9 \
+                    and y - 5 <= y_min:
                     logger.warning(f"Skipping small segment at slice {y}")
                     continue
                 
-                if max_voxel_value == 16 and np.count_nonzero(selected_y_slice) <= 15 \
-                    and y - 3 <= y_min:
-                    logger.warning(f"Skipping small segment at slice {y}")
-                    continue
-                
-                # Remove last segment if too small
-                if active_slice >= 0 and np.count_nonzero(selected_y_slice) <= 3:
-                    logger.warning(f"Removing small segment at slice {y}")
-                    # Remove last added slice data
-                    cc_value.pop()
-                    active_slice -= 1
                 
                 active_slice += 1
                 previous_slice = active_slice - 1
