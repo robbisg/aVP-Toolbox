@@ -34,6 +34,11 @@
             border-left-color: #3498db;
             font-weight: bold;
         }
+        .sidebar .scan-count {
+            font-size: 0.85rem;
+            color: #95a5a6;
+            margin-left: 5px;
+        }
         .main-content {
             margin-left: 250px;
             padding: 40px;
@@ -56,6 +61,19 @@
             color: #2c3e50;
             width: 40%;
         }
+        .scan-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        .scan-section h3 {
+            color: #2c3e50;
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
         h1 {
             color: #2c3e50;
             margin-bottom: 10px;
@@ -74,6 +92,29 @@
             border-bottom: 1px solid #34495e;
             margin-bottom: 20px;
         }
+        .scan-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .legend-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+        }
+        .legend-info strong {
+            display: block;
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+        .legend-item {
+            display: inline-block;
+            margin-right: 20px;
+            margin-bottom: 5px;
+        }
     </style>
 </head>
 <body>
@@ -86,6 +127,7 @@
                href="#{{ subject.id }}" 
                onclick="showSubject('{{ subject.id }}')">
                 {{ subject.name }}
+                <span class="scan-count">({{ subject.n_scans }} scans)</span>
             </a>
             {% endfor %}
         </nav>
@@ -96,30 +138,49 @@
         {% for subject in subjects %}
         <div id="{{ subject.id }}" class="subject-content" style="{% if not loop.first %}display: none;{% endif %}">
             <h1>{{ subject.name }}</h1>
+            <p class="text-muted">Total scans: {{ subject.n_scans }}</p>
             
-            <!-- NIfTI Image Viewer -->
+            <!-- Morphometry Feature Plots -->
             <div class="content-card">
-                <h2>📷 Image Viewer</h2>
-                {{ subject.image | safe }}
+                <h2>📈 Morphometry Analysis</h2>
+                <div class="legend-info">
+                    <strong>Color Legend:</strong>
+                    <div class="legend-item">
+                        <span style="color: #e74c3c;">●</span> <strong>Red:</strong> Left side
+                    </div>
+                    <div class="legend-item">
+                        <span style="color: #3498db;">●</span> <strong>Blue:</strong> Right side
+                    </div>
+                </div>
+                {{ subject.feature_plot | safe }}
             </div>
             
-            <!-- Statistics Plot -->
+            <!-- Combined NIfTI Image Viewers -->
             <div class="content-card">
-                <h2>📊 Statistics</h2>
-                {{ subject.stats_plot | safe }}
+                <h2>📷 Image Viewers - All Scans</h2>
+                {{ subject.images | safe }}
             </div>
             
-            <!-- Text Information -->
+            <!-- Individual Scan Information -->
             <div class="content-card">
-                <h2>ℹ️ Information</h2>
-                <table class="info-table table table-borderless">
-                    {% for key, value in subject.info.items() %}
-                    <tr>
-                        <td>{{ key }}:</td>
-                        <td>{{ value }}</td>
-                    </tr>
+                <h2>ℹ️ Scan Information</h2>
+                <div class="scan-grid">
+                    {% for scan_info in subject.scans_info %}
+                    <div class="scan-section">
+                        <h3>{{ scan_info['Scan Name'] }}</h3>
+                        <table class="info-table table table-sm table-borderless">
+                            {% for key, value in scan_info.items() %}
+                            {% if key != 'Scan Name' %}
+                            <tr>
+                                <td>{{ key }}:</td>
+                                <td>{{ value }}</td>
+                            </tr>
+                            {% endif %}
+                            {% endfor %}
+                        </table>
+                    </div>
                     {% endfor %}
-                </table>
+                </div>
             </div>
         </div>
         {% endfor %}
