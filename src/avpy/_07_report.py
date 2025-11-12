@@ -304,12 +304,13 @@ def generate_report(subjects_data, processed_df, output_file='mri_report.html'):
         # Here subject may be a int or str - ensure consistent key type
         if isinstance(subject_name, int):
             subject_key = f"{subject_name:02d}"
-            logger.info(f"INT: Processing subject: {subject_name} as key {subject_key}")
+            logger.debug(f"INT: Processing subject: {subject_name} as key {subject_key}")
         else:
             subject_key = f"00{subject_name}"
+        
         # Get image data if available
-        logger.info(f"Processing subject: {subject_name} (key: {subject_key})")
-        logger.info(f"Subjects data keys: {list(subjects_data.keys())}")
+        logger.debug(f"Processing subject: {subject_name} (key: {subject_key})")
+        logger.debug(f"Subjects data keys: {list(subjects_data.keys())}")
         scans_list = subjects_data.get(subject_key, [])
         
         logger.debug(f"Subject {subject_name}: Found {len(scans_list)} scans")
@@ -366,8 +367,6 @@ def generate_report(subjects_data, processed_df, output_file='mri_report.html'):
     
     logger.info(f"✅ Report generated: {output_file}")
     logger.info(f"   Total subjects: {len(subjects)}")
-    for subj in subjects:
-        logger.info(f"   - {subj['name']}: {subj['n_scans']} scans")
     
     return output_file
 
