@@ -127,7 +127,7 @@ def plot_nerve(nerve_map,
         slice_position = (start_slice + end_slice) / 2
         y_pos = start_slice - .5
         ax.hlines(y=y_pos, xmin=0, xmax=x_dim, colors='white', linestyles='dashed', linewidth=1, zorder=50)
-        ax.text(110, slice_position, segment_name, color='white', fontsize=12, zorder=100)
+        ax.text(110, slice_position, segment_name, color='white', fontsize=15, zorder=100)
     
 
     # Set the ticks to be at the correct mm intervals
@@ -146,6 +146,171 @@ def plot_nerve(nerve_map,
     return fig, ax
 
 
+def calculate_segment_statistics(full_dataframe, dataset_a, dataset_b, features, sides, image_type='normalized'):
+    """
+    Calculate statistical tests for each anatomical segment.
+    
+    Args:
+        full_dataframe (pd.DataFrame): Combined dataframe with all data
+        dataset_a (str): Name of first dataset group
+        dataset_b (str): Name of second dataset group
+        features (list): List of features to analyze
+        sides (list): List of sides to analyze
+        image_type (str): Type of image data to process
+        
+    Returns:
+        pd.DataFrame: Statistics summary for each segment
+    """
+    logger.info("Calculating segment-based statistics...")
+    
+    segment_stats = []
+    
+    for feature in features:
+        for side in sides:
+            # Filter data for this feature and side
+            df = filter_dataframe(full_dataframe, 
+                                  side=[side], 
+                                  image_type=[image_type])
+            
+            fsegments = np.unique(df['segment_name'].values)
+            # Calculate statistics for each segment
+            for segment_name in fsegments:
+                # Filter data for this segment (slice range)
+                df_segment = df[df['segment_name'] == segment_name]
+
+                # Average across slices for each subject
+                df_segment_avg = df_segment.groupby(['subject', 'group'])[feature].mean().reset_index()
+                
+                # Separate groups
+                group_a = df_segment_avg[df_segment_avg['group'] == dataset_a][feature].values
+                group_b = df_segment_avg[df_segment_avg['group'] == dataset_b][feature].values
+                
+                if len(group_a) == 0 or len(group_b) == 0:
+                    logger.warning(f"Insufficient data for {segment_name}, {side}, {feature}")
+                    continue
+                
+                # Perform t-test
+                t_stat, p_value = ttest_ind(group_a, group_b)
+                
+                # Calculate effect size (Cohen's d)
+                pooled_std = np.sqrt((np.std(group_a, ddof=1)**2 + np.std(group_b, ddof=1)**2) / 2)
+                cohens_d = (np.mean(group_a) - np.mean(group_b)) / pooled_std if pooled_std > 0 else 0
+                
+                # Store results
+                segment_stats.append({
+                    'segment': segment_name,
+                    'side': side,
+                    'feature': feature,
+                    f'{dataset_a}_mean': np.mean(group_a),
+                    f'{dataset_a}_std': np.std(group_a, ddof=1),
+                    f'{dataset_a}_n': len(group_a),
+                    f'{dataset_b}_mean': np.mean(group_b),
+                    f'{dataset_b}_std': np.std(group_b, ddof=1),
+                    f'{dataset_b}_n': len(group_b),
+                    't_statistic': t_stat,
+                    'p_value': p_value,
+                    'cohens_d': cohens_d,
+                    'significant': p_value < 0.05
+                })
+    
+    segment_stats_df = pd.DataFrame(segment_stats)
+    
+    logger.debug(f"Significant (uncorrected p<0.05): {segment_stats_df['significant'].sum()}")
+    
+    return segment_stats_df
+
+
+def plot_segment_statistics(segment_stats_df, dataset_a, dataset_b, path_map):
+    """
+    Create visualizations for segment-based statistics.
+    
+    Args:
+        segment_stats_df (pd.DataFrame): Segment statistics dataframe
+        dataset_a (str): Name of first dataset group
+        dataset_b (str): Name of second dataset group
+        path_map (str): Output directory for figures
+    """
+    logger.info("Generating segment statistics plots...")
+    
+    features = segment_stats_df['feature'].unique()
+    sides = segment_stats_df['side'].unique()
+    
+    for feature in features:
+        # Create figure with subplots for each side
+        fig, axes = pl.subplots(1, len(sides), figsize=(6*len(sides), 8))
+        if len(sides) == 1:
+            axes = [axes]
+        
+        for ax, side in zip(axes, sides):
+            df_plot = segment_stats_df[
+                (segment_stats_df['feature'] == feature) & 
+                (segment_stats_df['side'] == side)
+            ].copy()
+            
+            if len(df_plot) == 0:
+                continue
+            
+            # Prepare data for plotting
+            segments_plot = df_plot['segment'].values
+            x_pos = np.arange(len(segments_plot))
+            
+            means_a = df_plot[f'{dataset_a}_mean'].values
+            stds_a = df_plot[f'{dataset_a}_std'].values
+            means_b = df_plot[f'{dataset_b}_mean'].values
+            stds_b = df_plot[f'{dataset_b}_std'].values
+            
+            width = 0.35
+            
+            # Create bars
+            bars1 = ax.bar(x_pos - width/2, means_a, width, 
+                          yerr=stds_a, label=dataset_a, 
+                          color='#e74c3c', alpha=0.8, capsize=5)
+            bars2 = ax.bar(x_pos + width/2, means_b, width, 
+                          yerr=stds_b, label=dataset_b, 
+                          color='#3498db', alpha=0.8, capsize=5)
+            
+            # Add significance markers
+            y_max = max(means_a.max() + stds_a.max(), means_b.max() + stds_b.max())
+            for i, row in df_plot.iterrows():
+                y_pos = np.max([row[f'{dataset_a}_mean'] + row[f'{dataset_a}_std'],
+                                row[f'{dataset_b}_mean'] + row[f'{dataset_b}_std']])
+                if row['p_value'] < 0.05:
+                    # FDR significant
+                    ax.text(x_pos[i % len(x_pos)], y_pos * 1.05, '*', 
+                           ha='center', va='bottom', fontsize=18, fontweight='bold')
+                elif row['p_value'] < 0.01:
+                    # Bonferroni significant
+                    ax.text(x_pos[i % len(x_pos)], y_pos * 1.05, '**', 
+                           ha='center', va='bottom', fontsize=18, fontweight='bold')
+                elif row['p_value'] < 0.005:
+                    # Uncorrected significant
+                    ax.text(x_pos[i % len(x_pos)], y_pos * 1.05, '***', 
+                           ha='center', va='bottom', fontsize=18, fontweight='bold')
+
+            # Formatting
+            ax.set_xlabel('Segment', fontsize=12)
+            ax.set_ylabel(f'{feature.capitalize()}', fontsize=12)
+            ax.set_title(f'Side: {side.upper()}', fontsize=14, fontweight='bold')
+            ax.set_xticks(x_pos)
+            ax.set_xticklabels(segments_plot, rotation=45, ha='right')
+            
+            ax.grid(axis='y', alpha=0.3)
+            ax.set_ylim(0, y_max * 1.15)
+        ax.legend()
+        
+        fig.suptitle(f'{feature.capitalize()} - Segment Comparison: {dataset_a} vs {dataset_b}', 
+                    fontsize=16, fontweight='bold', y=0.98)
+        pl.tight_layout()
+        
+        # Save figure
+        output_file = op.join(path_map, f'segment_stats_{feature}_{dataset_a}_vs_{dataset_b}.png')
+        fig.savefig(output_file, dpi=300, bbox_inches='tight')
+        #logger.info(f"Saved segment statistics plot: {output_file}")
+        
+        pl.close(fig)
+
+
+
 def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None, 
                        image_type='normalized', p_value=0.05, correction_method='bonferroni', 
                        generate_figures=False, debug=False):
@@ -156,7 +321,7 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
         path (str): Root path containing the data
         dataset_a (str): Name of first dataset group  
         dataset_b (str): Name of second dataset group
-        features (list): List of features to analyze (default: ['Eccent', 'CSArea'])
+        features (list): List of features to analyze (default: ['eccent', 'area'])
         sides (list): List of sides to analyze (default: ['r', 'l'])
         image_type (str): Type of image data to process (default: 'normalized')
         p_value (float): P-value threshold for statistical tests (default: 0.05)
@@ -165,7 +330,7 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
         debug (bool): Enable debug logging
         
     Returns:
-        pd.DataFrame: Combined results dataframe with statistics
+        tuple: (slice_results_df, segment_stats_df) - Combined results dataframes with statistics
     """
     if debug:
         logging.basicConfig(level=logging.DEBUG)
@@ -244,8 +409,7 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
                     pl.imshow(nerve_map[:, ::-1, 35], cmap=pl.cm.magma)
                     pl.title(f"Group: {group} - Side: {side} - Feature: {feature}")
                     pl.colorbar()
-                    
-                
+    
     ###################################################################################
     # 3) Tests
     for feature in features:
@@ -291,7 +455,6 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
                 pl.imshow(threshold_image[:, :, 35], cmap=pl.cm.coolwarm, vmin=-5, vmax=5)
                 pl.title(f"Side: {side} - Feature: {feature}")
                 pl.colorbar()
-                
 
     ###################################################################################
     # 2) Plot different values
@@ -420,6 +583,161 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
             fig.savefig(op.join(path_map, 
                                 f"sub-group_feature-{feature}_stats-ttestfdr_side-both_on.png"))
             
+            fig, ax = plot_nerve(nerve_map_t,
+                                threshold=0.,
+                                comparison='equal',
+                                colormap=pl.cm.coolwarm,
+                                title=f"Unthresholded {feature} map in {dataset_a} vs {dataset_b}",
+                                vlim=(-5, 5))
+
+            fig.savefig(op.join(path_map, 
+                                f"sub-group_feature-{feature}_stats-ttestuncorrected_side-both_on.png"))        
+
+            fig, ax = plot_nerve(nerve_map_t * (nerve_map_p < bonferroni_value),
+                                threshold=0.,
+                                comparison='equal',
+                                colormap=pl.cm.coolwarm,
+                                title=f"Bonferroni-corrected {feature} map in {dataset_a} vs {dataset_b}",
+                                vlim=(-5, 5))
+            
+            fig.savefig(op.join(path_map,
+                                f"sub-group_feature-{feature}_stats-ttestbonferroni_side-both_on.png"))
+            
+            pl.close('all')
+        
+
+    
+    # NEW: Calculate segment-based statistics
+    segment_stats_df = calculate_segment_statistics(
+        full_dataframe, dataset_a, dataset_b, features, sides, image_type
+    )
+    
+    # Save segment statistics
+    segment_stats_file = op.join(path_map, f"segment_statistics_{dataset_a}_vs_{dataset_b}.xlsx")
+    segment_stats_df.to_excel(segment_stats_file, index=False)
+    #logger.info(f"Segment statistics saved to: {segment_stats_file}")
+    
+    # Generate segment statistics plots
+    if do_figures:
+        plot_segment_statistics(segment_stats_df, dataset_a, dataset_b, path_map)
+
+    # Slice-wise results
+    colormaps = [pl.cm.viridis, pl.cm.turbo]
+    limits = [(0.4, 1), (5, 19)]
+
+    for f, feature in enumerate(features):
+        for group in groups:
+            df = filter_dataframe(full_dataframe, 
+                                  group=[group], 
+                                  image_type=[image_type])
+            
+            df = apply_function(df, 
+                                keys=['current_slice_yz', 'subject', 'side'], 
+                                attr=feature, 
+                                fx=lambda x: x.mean(0))
+            
+            df = apply_function(df, 
+                                keys=['current_slice_yz', 'subject'], 
+                                attr=feature, 
+                                fx=lambda x: x.mean(0))
+            
+            df = apply_function(df,
+                                keys=['current_slice_yz'],
+                                attr=feature,
+                                fx=lambda x: x.mean(0))
+            
+            
+            nerve_map = create_nerve_map(df, feature)
+            
+            if do_figures:
+                fig, ax = plot_nerve(nerve_map,
+                                     threshold=0,
+                                     comparison='equal',
+                                     colormap=colormaps[f],
+                                     title=f"{feature} map in {group}",
+                                     vlim=limits[f])
+            
+                fig.savefig(
+                    op.join(path_map, 
+                            f"sub-group_feature-{feature}_group-{group}_side-both_on.png")
+                    )
+
+    # Generate slice-by-slice statistics dataframe
+    lap = 0
+    for feature in features:
+        for group in groups:            
+            df = filter_dataframe(full_dataframe, 
+                                  group=[group], 
+                                  side=[side], 
+                                  image_type=[image_type])        
+            df_mean = apply_function(df, 
+                                keys=['current_slice_yz'], 
+                                attr=feature, 
+                                fx=lambda x: x.mean(0))
+            df_std = apply_function(df,
+                                keys=['current_slice_yz'],
+                                attr=feature,
+                                fx=lambda x: x.std(0))
+            
+            if lap == 0:
+                dfs = df_mean.copy()
+            
+            lap += 1
+            
+            dfs[f"{feature}_mean_{group}"] = df_mean[feature].values
+            dfs[f"{feature}_std_{group}"] = df_std[feature].values
+
+    ###################################################################################
+    # 3) Plot different values
+    extension_fig = 'png'
+
+    for feature in features:
+                
+        df = filter_dataframe(full_dataframe, image_type=[image_type])        
+        df = apply_function(df, 
+                            keys=['current_slice_yz', 'group', 'subject'], 
+                            attr=feature, 
+                            fx=lambda x: x.mean(0))
+        
+        nerve_map_t = np.zeros((atlas.shape[0], atlas.shape[1], atlas.shape[2]))
+        nerve_map_p = np.zeros((atlas.shape[0], atlas.shape[1], atlas.shape[2]))
+        
+        ts = []
+        ps = []
+        
+        for y in range(n_slices):
+            
+            df_slice_a = filter_dataframe(df, current_slice_yz=[y+1], group=[dataset_a])
+            df_slice_b = filter_dataframe(df, current_slice_yz=[y+1], group=[dataset_b])
+            
+            t, p = ttest_ind(df_slice_a[feature].values, 
+                             df_slice_b[feature].values)
+            
+            nerve_map_t[:, y, :][atlas_data[:, y, :] >= percentage_threshold] = t
+            nerve_map_p[:, y, :][atlas_data[:, y, :] >= percentage_threshold] = p
+
+            ts.append(t)
+            ps.append(p)
+            
+        nerve_map_t = np.flip(nerve_map_t, axis=1)
+        nerve_map_p = np.flip(nerve_map_p, axis=1)
+            
+        dfs[f"{feature}_t"] = ts
+        dfs[f"{feature}_p"] = ps
+                    
+        mask_p, p_fdr = pg.multicomp(nerve_map_p, method='fdr_bh')
+        threshold_image = nerve_map_t * mask_p
+        
+        if do_figures:
+            fig, ax = plot_nerve(threshold_image, 
+                                threshold=0, 
+                                comparison='equal', 
+                                colormap=pl.cm.coolwarm,
+                                title=f"FDR-corrected {feature} map in {dataset_a} vs {dataset_b}",
+                                vlim=(-5, 5))
+            
+            fig.savefig(op.join(path_map, 
+                                f"sub-group_feature-{feature}_stats-ttestfdr_side-both_on.png"))
             
             fig, ax = plot_nerve(nerve_map_t,
                                 threshold=0.,
@@ -430,8 +748,6 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
 
             fig.savefig(op.join(path_map, 
                                 f"sub-group_feature-{feature}_stats-ttestuncorrected_side-both_on.png"))        
-            
-            
 
             fig, ax = plot_nerve(nerve_map_t * (nerve_map_p < bonferroni_value),
                                 threshold=0.,
@@ -450,7 +766,7 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
     dfs.to_excel(output_file)
     logger.info(f"Results saved to: {output_file}")
     
-    return dfs
+    return dfs, segment_stats_df
 
 
 def main(path="./", dataset_a="HC", dataset_b="PTS", debug=False):
