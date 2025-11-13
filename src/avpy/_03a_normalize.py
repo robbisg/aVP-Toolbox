@@ -165,11 +165,11 @@ def main(path="./", debug=False):
 
                 checked_area = np.count_nonzero(selected_y_slice) * x_resolution * z_resolution
 
-                if max_voxel_value == 1 and y + 4 > y_max:
+                if max_voxel_value == 1 and y + 5 > y_max:
                     logger.warning(f"Skipping small segment at slice {y}")
                     continue
 
-                if max_voxel_value == 16 and y - 4 < y_min:
+                if max_voxel_value == 16 and y - 5 < y_min:
                     logger.warning(f"Skipping small segment at slice {y}")
                     continue
                 
