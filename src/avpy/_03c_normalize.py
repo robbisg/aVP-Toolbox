@@ -70,9 +70,9 @@ def main(path="./", debug=False):
                 x_resolution = img.header.get_zooms()[0]
                 y_resolution = img.header.get_zooms()[1]
                 z_resolution = img.header.get_zooms()[2]
-                
-                current_slice_idx = 0
-                
+
+                current_slice_idx = -1
+
                 n_segment_area = 0
                 n_total_area = 0
                 total_area = 0
@@ -83,8 +83,12 @@ def main(path="./", debug=False):
                 
                 cc_value = []
                 
+                nonzero_elements = np.nonzero(nifti_data)
+                y_min = np.min(nonzero_elements[1])
+                y_max = np.max(nonzero_elements[1])
+                
                 # Process each slice
-                for y in range(dy):
+                for y in range(y_min, y_max + 1):
                     selected_y_slice = nifti_data[:, y, :]
                     max_voxel_value = int(np.round(np.max(selected_y_slice)))
                     

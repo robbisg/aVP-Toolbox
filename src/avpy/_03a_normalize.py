@@ -151,7 +151,7 @@ def main(path="./", debug=False):
             # Reverse the order to start from orbital to cranial
             slice_to_process = np.arange(y_min, y_max + 1)[::-1]
             # Process each slice along y axis
-            for y in slice_to_process:
+            for y in slices_to_process:
 
                 # Take xz "slice", eliminating other ys
                 selected_y_slice = nifti_data[:, y, :]
@@ -165,13 +165,11 @@ def main(path="./", debug=False):
 
                 checked_area = np.count_nonzero(selected_y_slice) * x_resolution * z_resolution
 
-                if max_voxel_value == 1 and checked_area <= 9.5 \
-                    and y + 5 >= y_max:
+                if max_voxel_value == 1 and y + 3 > y_max:
                     logger.warning(f"Skipping small segment at slice {y}")
                     continue
 
-                if max_voxel_value == 16 and checked_area <= 9 \
-                    and y - 5 <= y_min:
+                if max_voxel_value == 16 and y - 3 < y_min:
                     logger.warning(f"Skipping small segment at slice {y}")
                     continue
                 
@@ -299,6 +297,8 @@ def main(path="./", debug=False):
                 slice_data['majaxis'] = props[0].major_axis_length * x_resolution
                 slice_data['minaxis'] = props[0].minor_axis_length * z_resolution
                 slice_data['area']    = area
+                slice_data['voxel_area'] = props[0].area
+
                 slice_data['eccent']  = props[0].eccentricity
                 
                 if slice_data['eccent'] == 0:
@@ -316,7 +316,6 @@ def main(path="./", debug=False):
                 slice_data['int_distance'] = n_slices
                 slice_data['int_upsampled_distance'] = n_slices_upsampled
                 
-                slice_data['voxel_area'] = props[0].area
                 
                 cc_value.append(slice_data)
                 
