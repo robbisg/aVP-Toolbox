@@ -149,7 +149,7 @@ def main(path="./", debug=False):
             y_max = np.max(nonzero_elements[1])
             
             # Reverse the order to start from orbital to cranial
-            slice_to_process = np.arange(y_min, y_max + 1)[::-1]
+            slices_to_process = np.arange(y_min, y_max + 1)[::-1]
             # Process each slice along y axis
             for y in slices_to_process:
 
@@ -165,11 +165,11 @@ def main(path="./", debug=False):
 
                 checked_area = np.count_nonzero(selected_y_slice) * x_resolution * z_resolution
 
-                if max_voxel_value == 1 and y + 3 > y_max:
+                if max_voxel_value == 1 and y + 4 > y_max:
                     logger.warning(f"Skipping small segment at slice {y}")
                     continue
 
-                if max_voxel_value == 16 and y - 3 < y_min:
+                if max_voxel_value == 16 and y - 4 < y_min:
                     logger.warning(f"Skipping small segment at slice {y}")
                     continue
                 
