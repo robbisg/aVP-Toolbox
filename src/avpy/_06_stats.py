@@ -40,6 +40,14 @@ atlas_name = "aVP-24_prob50.nii.gz"
 
 percentage_threshold = 50
 
+segments = [
+    ('iOrb', 0, 36),
+    ('iCan', 37, 47),
+    ('iCran', 48, 73),
+    ('OC', 74, 84),
+    ('OT', 85, 101)
+]
+
 def create_nerve_map(dataframe, feature):
     
     background_image = ni.load(op.join(atlas_dir, atlas_name))
@@ -115,14 +123,17 @@ def plot_nerve(nerve_map,
     ax.set_xlabel("x-length (mm)")  # Units added
     ax.set_ylabel("y-length (mm)")  # Units added
     
+    for segment_name, start_slice, end_slice in segments:
+        slice_position = (start_slice + end_slice) / 2
+        y_pos = start_slice - .5
+        ax.hlines(y=y_pos, xmin=0, xmax=x_dim, colors='white', linestyles='dashed', linewidth=1, zorder=50)
+        ax.text(110, slice_position, segment_name, color='white', fontsize=12, zorder=100)
+    
 
     # Set the ticks to be at the correct mm intervals
     x_ticks = np.arange(0, x_dim + 1, 25)
     y_ticks = np.arange(0, y_dim + 1, 25)[::-1]
-    
-    x_ticks_labels = np.arange(0, x_dim * resolution + resolution, 10 * resolution)
-    y_ticks_labels = np.arange(0, y_dim * resolution + resolution, 10 * resolution)
-    
+        
     ax.set_xticks(x_ticks)
     ax.set_yticks(y_ticks)
     
@@ -130,6 +141,7 @@ def plot_nerve(nerve_map,
     ax.yaxis.set_major_formatter(lambda x, pos: f"{int(x*resolution):.1f}")
     
     ax.set_xlim(100, 150)
+    ax.grid(False)
     
     return fig, ax
 
@@ -189,7 +201,7 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
     n_slices = atlas.shape[1]
     
     bonferroni_value = p_value / n_slices
-    logger.info(f"Using Bonferroni correction: {bonferroni_value}")
+    logger.info(f"Bonferroni correction: {bonferroni_value}")
 
     groups = [dataset_a, dataset_b]
 
@@ -292,15 +304,22 @@ def generate_nerve_maps(path, dataset_a, dataset_b, features=None, sides=None,
         for group in groups:
             df = filter_dataframe(full_dataframe, 
                                   group=[group], 
-                                  side=[side], 
-                                  image_type=[image_type])        
+                                  #side=[side], 
+                                  image_type=[image_type])
+            
+            # TODO: Can I pipeline these operations?    
             df = apply_function(df, 
-                                keys=['original_slice_yz', 'subject'], 
+                                keys=['current_slice_yz', 'subject', 'side'], 
+                                attr=feature, 
+                                fx=lambda x: x.mean(0))
+            
+            df = apply_function(df, 
+                                keys=['current_slice_yz', 'subject'], 
                                 attr=feature, 
                                 fx=lambda x: x.mean(0))
             
             df = apply_function(df,
-                                keys=['original_slice_yz'],
+                                keys=['current_slice_yz'],
                                 attr=feature,
                                 fx=lambda x: x.mean(0))
             

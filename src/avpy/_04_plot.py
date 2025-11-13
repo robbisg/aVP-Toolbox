@@ -39,6 +39,14 @@ NAME = "plot_features"
 
 plt.style.use('seaborn-v0_8')
 
+fixed_segments = [
+    ('iOrb', 0, 36),
+    ('iCan', 37, 47),
+    ('iCran', 48, 73),
+    ('OC', 74, 84),
+    ('OT', 85, 101)
+]
+
 def create_feature_lineplot(df, feature, x_axis='current_slice_yz', group_by='subject', 
                             image_type='linearized', output_path=None):
     """
@@ -59,6 +67,15 @@ def create_feature_lineplot(df, feature, x_axis='current_slice_yz', group_by='su
     # TODO: A possible implementation is to extract the line from each subject and
     # produce a single plot and a total plot.
     
+    mapping = {
+        'linearize': 'linearized',
+        'normalized': 'normalized',
+        'l': 'left',
+        'r': 'right',
+        'area': 'Cross-Sectional Area (mm²)',
+        'eccent': 'Eccentricity',
+    }
+    
     if len(plot_df) == 0:
         logger.warning(f"No data available for {feature}")
         return
@@ -71,7 +88,7 @@ def create_feature_lineplot(df, feature, x_axis='current_slice_yz', group_by='su
     #plt.show()
    
     # Add average line to each subplot in the seaborn figure
-    for ax in figure.axes.flat:
+    for i, ax in enumerate(figure.axes.flat):
         # Get data for this subplot
         subplot_data = ax.lines[0].get_data() if ax.lines else ([], [])
         if len(subplot_data[0]) == 0:
@@ -89,10 +106,23 @@ def create_feature_lineplot(df, feature, x_axis='current_slice_yz', group_by='su
             df_temp = pd.DataFrame({'x': x_vals, 'y': y_vals})
             avg = df_temp.groupby('x')['y'].mean().reset_index()
             ax.plot(avg['x'], avg['y'], linewidth=3, color='darkblue', label='Average')
+            
+        if 'normalized' in ax.get_title().lower():
+            for segment_name, start_slice, end_slice in fixed_segments:
+                boundary = end_slice + 0.5
+                ax.axvline(x=boundary, color='gray', linewidth=.8, linestyle='--')
+                text_x = (start_slice + end_slice) * .5
+                
+                line_max = avg['y'].values[start_slice:end_slice].max()
+                text_y = line_max + (line_max * 0.1)
+                
+                ax.text(text_x-3, text_y, segment_name, color='darkblue', fontweight='bold', fontsize=14)
         
         # Change title font size
         ax.set_title(ax.get_title(), fontsize=16)
-        ax.set_xlabel(x_axis, fontsize=14)
+        ax.set_xlabel("y length (mm)", fontsize=14)
+        ax.xaxis.set_major_formatter(lambda x, pos: f"{int(x*0.6):.1f}") # Example: 1 decimal place
+
         ax.set_ylabel(feature, fontsize=14)
         #ax.legend()
 
@@ -103,11 +133,7 @@ def create_feature_lineplot(df, feature, x_axis='current_slice_yz', group_by='su
     # Plot individual subjects as transparent lines
     subjects = plot_df[group_by].unique()
     logger.debug(f"Plotting {len(subjects)} subjects")
-    
-    n_segments = plot_df['segment_name'].nunique()
-    segments = plot_df['segment_name'].unique()
-    colormap = sns.color_palette('husl', n_colors=n_segments)
-    
+        
     for subject in subjects:
         
         figure_lr, ax_lr = plt.subplots(2, 2, figsize=(16, 8))
