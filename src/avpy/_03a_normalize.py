@@ -162,15 +162,17 @@ def main(path="./", debug=False):
                 # Empty slice, go to the next
                 if max_voxel_value == 0:
                     continue
-
+                
+                # Remove first and last 5 slices of ON
+                # This is left to be used in a later stage
                 checked_area = np.count_nonzero(selected_y_slice) * x_resolution * z_resolution
 
-                if max_voxel_value == 1 and y + 5 > y_max:
-                    logger.warning(f"Skipping small segment at slice {y}")
+                if max_voxel_value == 1 and y + 3 > y_max:
+                    #logger.warning(f"Skipping small segment at slice {y}")
                     continue
 
-                if max_voxel_value == 16 and y - 5 < y_min:
-                    logger.warning(f"Skipping small segment at slice {y}")
+                if max_voxel_value == 16 and y - 3 < y_min:
+                    #logger.warning(f"Skipping small segment at slice {y}")
                     continue
                 
                 

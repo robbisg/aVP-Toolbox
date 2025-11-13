@@ -80,7 +80,9 @@ def create_feature_lineplot(df, feature, x_axis='current_slice_yz', group_by='su
         logger.warning(f"No data available for {feature}")
         return
     
-    
+    #####################################################################
+    # Plot of all subjects with average line
+    #####################################################################
     figure = sns.relplot(data=plot_df, x=x_axis, y=feature, hue=group_by, 
                          col='side', row='image_type', kind='line', alpha=0.3,
                          color='dimgray', height=4, aspect=2)
@@ -129,8 +131,9 @@ def create_feature_lineplot(df, feature, x_axis='current_slice_yz', group_by='su
     fname = os.path.join(output_path, 'plots', f'sub-all_feature-{feature}_desc-allsubjects_plot.png')
     figure.savefig(fname, dpi=300)
 
-    
-    # Plot individual subjects as transparent lines
+    ########################################################################
+    # Plot of individual subjects in separate plots
+    ########################################################################
     subjects = plot_df[group_by].unique()
     logger.debug(f"Plotting {len(subjects)} subjects")
         
@@ -156,23 +159,23 @@ def create_feature_lineplot(df, feature, x_axis='current_slice_yz', group_by='su
 
                 to_be_averaged.append([x, y])
                 
-                ax_lr[t, s].plot(x, y, linewidth=1, color='salmon')
+                ax_lr[t, s].plot(x, y, linewidth=1.5, color='salmon')
                 ax_lr[t, s].set_title(f'{feature} in {subject} {img_type} image - {side}', fontsize=14)
 
                 ax_lr[t, s].set_xlabel(x_axis, fontsize=12)
                 ax_lr[t, s].set_ylabel(feature, fontsize=12)
 
                 # Separate segments with vertical lines
-                segment_positions = data['segment_name'].unique()
-                segment_positions = [seg for seg in segment_positions if pd.notna(seg)]
-                segment_positions = sorted(segment_positions)
-                
-                segment_boundaries = []
-                for i, segment in enumerate(segment_positions[1:], 1):  # Skip first segment
-                    prev_segment = segment_positions[i-1]
+                segment_names = data['segment_name'].unique()
+                for i, segment in enumerate(segment_names):  # Skip first segment
                     boundary = data[data['segment_name'] == segment][x_axis].min()
-                    segment_boundaries.append(boundary)
-                    ax_lr[t, s].axvline(x=boundary, color='gray', alpha=0.6, linewidth=.5)
+                    ax_lr[t, s].axvline(x=boundary, color='gray', alpha=0.6, linewidth=.5, linestyle='--')
+                    
+                    # Add segment labels
+                    line_max_segment = y[data['segment_name'] == segment].max()
+                    text_x = boundary + (data[data['segment_name'] == segment][x_axis].max() - boundary) * 0.5
+                    text_y = line_max_segment + (line_max_segment * 0.02)
+                    ax_lr[t, s].text(text_x-3, text_y, segment, color='salmon', fontweight='bold', fontsize=14)
 
             
             min_elements = np.min([len(item[1]) for item in to_be_averaged])
@@ -184,17 +187,16 @@ def create_feature_lineplot(df, feature, x_axis='current_slice_yz', group_by='su
             ax_avg[t].set_title(f'{feature} in {subject} {img_type} image - Average Both Sides', fontsize=14)
             ax_avg[t].set_xlabel(x_axis, fontsize=12)
             ax_avg[t].set_ylabel(feature, fontsize=12)
-
-        ## Separate segments with vertical lines
-        #segment_positions = plot_df['segment_name'].unique()
-        #segment_positions = [seg for seg in segment_positions if pd.notna(seg)]
-        #segment_positions = sorted(segment_positions)
-        #segment_boundaries = []
-        #for i, segment in enumerate(segment_positions[1:], 1):  # Skip first
-        #    prev_segment = segment_positions[i-1]
-        #    boundary = plot_df[plot_df['segment_name'] == segment][x_axis].min()
-        #    segment_boundaries.append(boundary)
-        #    ax_avg.axvline(x=boundary, color='gray', alpha=0.6, linewidth=.5)
+        
+            for i, segment in enumerate(segment_names):  # Skip first segment
+                boundary = data[data['segment_name'] == segment][x_axis].min()
+                ax_avg[t].axvline(x=boundary, color='gray', alpha=0.6, linewidth=.5, linestyle='--')
+                
+                # Add segment labels
+                line_max_segment = y_avg[(x_avg >= boundary) & (x_avg <= data[data['segment_name'] == segment][x_axis].max())].max()
+                text_x = boundary + (data[data['segment_name'] == segment][x_axis].max() - boundary) * 0.5
+                text_y = line_max_segment + (line_max_segment * 0.02)
+                ax_avg[t].text(text_x-3, text_y, segment, color='salmon', fontweight='bold', fontsize=14)
         
         figure_lr.tight_layout()
         figure_avg.tight_layout()
