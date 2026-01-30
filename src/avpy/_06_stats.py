@@ -751,7 +751,7 @@ def generate_nerve_maps(path, features=None, sides=None, groups=None,
         
         # Check if 'subject' column exists
         if 'subject' not in full_dataframe.columns:
-            raise ValueError(f"Consolidated results file must contain 'subject' column")
+            raise ValueError("Consolidated results file must contain 'subject' column")
         
         # Check if 'group' column exists, if not, try to merge with subject-to-group mapping
         if 'group' not in full_dataframe.columns:

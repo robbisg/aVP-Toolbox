@@ -6,8 +6,7 @@ import os
 import pytest
 import pandas as pd
 import numpy as np
-import shutil
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from avpy import _06_stats
 
 

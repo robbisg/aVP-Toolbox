@@ -1,2 +1,17 @@
 data/*
 *.pyc
+.coverage
+junit-results.xml
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+htmlcov/
+.tox/
+.venv/
+venv/
+ENV/
+env/
+dist/
+build/
+*.egg-info/
