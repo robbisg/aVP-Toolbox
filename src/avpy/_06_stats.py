@@ -724,20 +724,80 @@ def generate_nerve_maps(path, features=None, sides=None, groups=None,
     atlas_data = atlas.get_fdata()
     n_slices = atlas.shape[1]
 
-    # Read data for each group
-    # TODO: This will be removed since I have now only one results file
-    for group in groups:
-        group_file = results_fname.format(group=group)
-        if not op.exists(group_file):
-            raise FileNotFoundError(f"Results file not found for group {group}: {group_file}")
-        
-        logger.info(f"Loading data for group: {group}")
-        df = pd.read_excel(group_file)
-        df['group'] = [group] * df.shape[0]
-        dataframe.append(df)
+    # Try to read from consolidated results file first
+    consolidated_file = op.join(path, "results", "CSA_slice_iso.xlsx")
     
-    full_dataframe = pd.concat(dataframe, ignore_index=True)
-    logger.info(f"Loaded data for {len(groups)} groups with {len(full_dataframe)} total samples")
+    if op.exists(consolidated_file):
+        logger.info(f"Loading consolidated results file: {consolidated_file}")
+        full_dataframe = pd.read_excel(consolidated_file)
+        
+        # Check if 'subject' column exists
+        if 'subject' not in full_dataframe.columns:
+            raise ValueError(f"Consolidated results file must contain 'subject' column")
+        
+        # Check if 'group' column exists, if not, try to merge with subject-to-group mapping
+        if 'group' not in full_dataframe.columns:
+            logger.info("Group column not found in consolidated file, attempting to merge with group information")
+            
+            # Create a mapping from subjects to groups based on the directory structure
+            subject_group_map = {}
+            for group in groups:
+                group_subjects_file = op.join(path, group, "data", "sbj.list")
+                if op.exists(group_subjects_file):
+                    with open(group_subjects_file, 'r') as f:
+                        subjects = [line.strip() for line in f if line.strip()]
+                        for subj in subjects:
+                            subject_group_map[subj] = group
+            
+            # If no mapping found via sbj.list files, try to infer from existing group-specific files
+            if not subject_group_map:
+                logger.warning("No subject list files found, attempting to infer groups from directory structure")
+                for group in groups:
+                    group_file = results_fname.format(group=group)
+                    if op.exists(group_file):
+                        temp_df = pd.read_excel(group_file)
+                        if 'subject' in temp_df.columns:
+                            for subj in temp_df['subject'].unique():
+                                subject_group_map[subj] = group
+            
+            # Apply the mapping to create group column
+            if subject_group_map:
+                full_dataframe['group'] = full_dataframe['subject'].map(subject_group_map)
+                
+                # Check for unmapped subjects
+                unmapped = full_dataframe[full_dataframe['group'].isna()]['subject'].unique()
+                if len(unmapped) > 0:
+                    raise ValueError(f"Could not determine group for subjects: {unmapped}")
+                
+                logger.info(f"Successfully merged group information for {len(subject_group_map)} subjects")
+            else:
+                raise ValueError("Could not create subject-to-group mapping. Please ensure 'group' column exists in consolidated file or provide group assignment information.")
+        
+        # Validate that all specified groups are present in the data
+        available_groups = full_dataframe['group'].unique()
+        missing_groups = set(groups) - set(available_groups)
+        if missing_groups:
+            raise ValueError(f"Groups specified but not found in data: {missing_groups}")
+        
+        # Filter to only include specified groups
+        full_dataframe = full_dataframe[full_dataframe['group'].isin(groups)].copy()
+        
+        logger.info(f"Loaded consolidated data for {len(groups)} groups with {len(full_dataframe)} total samples")
+    else:
+        # Fall back to reading from separate group-specific files
+        logger.info("Consolidated results file not found, reading from group-specific files")
+        for group in groups:
+            group_file = results_fname.format(group=group)
+            if not op.exists(group_file):
+                raise FileNotFoundError(f"Results file not found for group {group}: {group_file}")
+            
+            logger.info(f"Loading data for group: {group}")
+            df = pd.read_excel(group_file)
+            df['group'] = [group] * df.shape[0]
+            dataframe.append(df)
+        
+        full_dataframe = pd.concat(dataframe, ignore_index=True)
+        logger.info(f"Loaded data for {len(groups)} groups with {len(full_dataframe)} total samples")
     
     # Calculate statistics
     if use_linear_model:
