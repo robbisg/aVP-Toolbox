@@ -669,6 +669,19 @@ def generate_nerve_maps(path, features=None, sides=None, groups=None,
     """
     Generate nerve maps and perform statistical analysis.
     
+    This function supports two data loading approaches:
+    
+    1. **Consolidated file approach (preferred)**: If a file exists at 
+       `path/results/CSA_slice_iso.xlsx`, it will be loaded directly. This file should:
+       - Contain a 'subject' column with subject IDs
+       - Optionally contain a 'group' column with group assignments
+       - If 'group' column is missing, the function will attempt to merge group 
+         information from subject list files at `path/{group}/data/sbj.list`
+    
+    2. **Group-specific files (fallback)**: If consolidated file doesn't exist,
+       the function falls back to loading separate files from 
+       `path/{group}/results/CSA_slice_iso.xlsx` for each specified group.
+    
     Args:
         path (str): Root path containing the data
         features (list): List of features to analyze (default: ['eccent', 'area'])
@@ -687,6 +700,11 @@ def generate_nerve_maps(path, features=None, sides=None, groups=None,
         
     Returns:
         tuple: (slice_results_df, segment_stats_df) - Combined results dataframes
+        
+    Raises:
+        ValueError: If consolidated file exists but lacks required columns or if 
+                   subjects cannot be mapped to groups
+        FileNotFoundError: If neither consolidated file nor group-specific files exist
     """
     if debug:
         logging.basicConfig(level=logging.DEBUG)
