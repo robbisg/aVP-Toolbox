@@ -725,6 +725,7 @@ def generate_nerve_maps(path, features=None, sides=None, groups=None,
     n_slices = atlas.shape[1]
 
     # Read data for each group
+    # TODO: This will be removed since I have now only one results file
     for group in groups:
         group_file = results_fname.format(group=group)
         if not op.exists(group_file):
@@ -812,6 +813,8 @@ def main(path="./", groups=None, debug=False, use_linear_model=False,
     
     logger.info("Starting aVP-Toolbox statistical analysis")
     
+    # Is it useless to use main as a wrapper around generate_nerve_maps?
+    
     try:
         _, segment_stats_df = generate_nerve_maps(
             path=path,
@@ -842,6 +845,7 @@ if __name__ == '__main__':
     
     parser = argparse.ArgumentParser(description="Statistical analysis for aVP-Toolbox")
     parser.add_argument("--path", type=str, default="./", help="Root path containing the data")
+    # Effect row
     parser.add_argument("--groups", type=str, nargs='+', required=True, 
                        help="List of group names (e.g., HC PTS MS)")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")

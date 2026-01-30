@@ -37,7 +37,9 @@ dependencies = [
   "seaborn",
   "sekupy",
   "pingouin",
-  "sentry-sdk"
+  "sentry-sdk",
+  "plotly",
+  "statsmodels"
 ]
 dynamic = ["version"]
 
