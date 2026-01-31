@@ -118,15 +118,13 @@ def main():
         "--test", dest="test", default=None, help="The subject to process. \
         Currently not used in this script."
     )
-    parser.add_argument(
-        "--dataset-A", dest="dataset_a", default=None, help="The folder in which \
-            the processed data of first dataset is."
-    )
-    parser.add_argument(
-        "--dataset-B", dest="dataset_b", default=None, help="The folder in which \
-            the processed data of second dataset is."
-    )
-
+    # Add argument from stats function
+    parser.add_argument("--groups", type=str, nargs='+')
+    parser.add_argument("--use-lm", action="store_true", default=True)
+    parser.add_argument("--covariates", type=str, nargs='+')
+    parser.add_argument("--formula", type=str)
+    parser.add_argument("--correction", type=str, default='fdr_bh',
+                       choices=['bonferroni', 'fdr_bh', 'fdr_by', 'holm', 'hommel'])
     options = parser.parse_args()
     
     # Convert paths to Path objects for better handling
@@ -140,14 +138,9 @@ def main():
     
     try:
         # Special handling for stats which requires datasets
-        if 'stats' in steps_to_run and (options.dataset_a is None or options.dataset_b is None):
-            if len(steps_to_run) == 1:
-                # Only stats was requested but datasets are missing
-                raise ValueError("--dataset-A and --dataset-B must be provided to run the stats step.")
-            else:
-                # Remove stats from steps if datasets are missing
-                logger.warning("Skipping 'stats' step because --dataset-A or --dataset-B is missing.")
-                steps_to_run.remove('stats')
+        if 'stats' in steps_to_run and len(steps_to_run) > 1:
+            logger.warning("Skipping 'stats' step. Run it separately if needed.")
+            steps_to_run.remove('stats')
         
         if 'atlas' in steps_to_run and len(steps_to_run) > 1:
             # Ensure atlas step is run only if datasets are provided
@@ -161,15 +154,18 @@ def main():
                 
         # Run the processing steps
         for step_name in steps_to_run:
-            if step_name == 'stats' and options.dataset_a and options.dataset_b:
+            if step_name == 'stats':
                 # Special case for stats which needs dataset arguments
                 start = time.time()
                 logger.info(f"Running {step_name}...")
                 STEP_MODULES[step_name].main(
-                    path=options.root_dir, 
-                    dataset_a=options.dataset_a, 
-                    dataset_b=options.dataset_b,
-                    debug=True
+                    path=options.root_dir,
+                    groups=options.groups, 
+                    use_linear_model=options.use_lm, 
+                    covariates=options.covariates,
+                    formula=options.formula, 
+                    correction_method=options.correction,
+                    debug=options.debug
                 )
             else:
                 # Standard processing steps
