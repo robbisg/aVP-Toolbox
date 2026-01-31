@@ -85,7 +85,7 @@ def create_feature_lineplot(df, feature, x_axis='current_slice_yz', group_by='su
     #####################################################################
     figure = sns.relplot(data=plot_df, x=x_axis, y=feature, hue=group_by, 
                          col='side', row='image_type', kind='line', alpha=0.3,
-                         color='dimgray', height=4, aspect=2)
+                         color='dimgray', height=4, aspect=2, legend=False)
         
     #plt.show()
    
