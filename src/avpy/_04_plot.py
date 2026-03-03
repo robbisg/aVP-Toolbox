@@ -67,6 +67,8 @@ def create_feature_lineplot(df, feature, x_axis='current_slice_yz', group_by='su
     # TODO: A possible implementation is to extract the line from each subject and
     # produce a single plot and a total plot.
     
+    y_lim = 32 if feature == 'area' else None
+    
     mapping = {
         'linearize': 'linearized',
         'normalized': 'normalized',
@@ -127,8 +129,8 @@ def create_feature_lineplot(df, feature, x_axis='current_slice_yz', group_by='su
 
         ax.set_ylabel(feature, fontsize=14)
         # Set y-limits
-        if feature == 'area':
-            ax.set_ylim(0, 32) # squared mm
+        if y_lim:
+            ax.set_ylim(0, y_lim)
         
         #ax.legend()
 
@@ -169,8 +171,8 @@ def create_feature_lineplot(df, feature, x_axis='current_slice_yz', group_by='su
                 ax_lr[t, s].set_xlabel(x_axis, fontsize=12)
                 ax_lr[t, s].set_ylabel(feature, fontsize=12)
                 
-                if feature == 'area':
-                    ax_lr[t, s].set_ylim(0, 32)
+                if y_lim:
+                    ax_lr[t, s].set_ylim(0, y_lim)
 
                 # Separate segments with vertical lines
                 segment_names = data['segment_name'].unique()
@@ -194,10 +196,10 @@ def create_feature_lineplot(df, feature, x_axis='current_slice_yz', group_by='su
             ax_avg[t].set_title(f'{feature} in {subject} {img_type} image - Average Both Sides', fontsize=14)
             ax_avg[t].set_xlabel(x_axis, fontsize=12)
             ax_avg[t].set_ylabel(feature, fontsize=12)
-            
-            if feature == 'area':
-                ax_avg[t].set_ylim(0, 32)
-        
+
+            if y_lim:
+                ax_avg[t].set_ylim(0, y_lim)
+
             for i, segment in enumerate(segment_names):  # Skip first segment
                 boundary = data[data['segment_name'] == segment][x_axis].min()
                 ax_avg[t].axvline(x=boundary, color='gray', alpha=0.6, linewidth=.5, linestyle='--')
