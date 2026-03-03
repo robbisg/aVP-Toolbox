@@ -126,6 +126,10 @@ def create_feature_lineplot(df, feature, x_axis='current_slice_yz', group_by='su
         ax.xaxis.set_major_formatter(lambda x, pos: f"{int(x*0.6):.1f}") # Example: 1 decimal place
 
         ax.set_ylabel(feature, fontsize=14)
+        # Set y-limits
+        if feature == 'area':
+            ax.set_ylim(0, 32) # squared mm
+        
         #ax.legend()
 
     fname = os.path.join(output_path, 'plots', f'sub-all_feature-{feature}_desc-allsubjects_plot.png')
@@ -164,6 +168,9 @@ def create_feature_lineplot(df, feature, x_axis='current_slice_yz', group_by='su
 
                 ax_lr[t, s].set_xlabel(x_axis, fontsize=12)
                 ax_lr[t, s].set_ylabel(feature, fontsize=12)
+                
+                if feature == 'area':
+                    ax_lr[t, s].set_ylim(0, 32)
 
                 # Separate segments with vertical lines
                 segment_names = data['segment_name'].unique()
@@ -187,6 +194,9 @@ def create_feature_lineplot(df, feature, x_axis='current_slice_yz', group_by='su
             ax_avg[t].set_title(f'{feature} in {subject} {img_type} image - Average Both Sides', fontsize=14)
             ax_avg[t].set_xlabel(x_axis, fontsize=12)
             ax_avg[t].set_ylabel(feature, fontsize=12)
+            
+            if feature == 'area':
+                ax_avg[t].set_ylim(0, 32)
         
             for i, segment in enumerate(segment_names):  # Skip first segment
                 boundary = data[data['segment_name'] == segment][x_axis].min()
