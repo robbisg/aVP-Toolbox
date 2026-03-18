@@ -149,14 +149,14 @@ def calculate_segment_statistics(full_dataframe, dataset_a, dataset_b, features,
 def calculate_segment_statistics_lm(full_dataframe, features, sides, 
                                     covariates=None, image_type='normalized', formula=None,
                                     correction_method='fdr_bh'):
+    # TODO: Use the a unique function for both segment and slice statistics,
+    # with an argument to specify the grouping variable (segment vs slice)
     
     logger.info("Calculating segment-based statistics with linear models...")
     
+    # This should thorow and error?
     if covariates is None:
         covariates = []
-    
-    if 'group' not in covariates:
-        covariates = ['group'] + covariates
     
     segment_stats = []
     
@@ -191,12 +191,13 @@ def calculate_segment_statistics_lm(full_dataframe, features, sides,
                         'adj_r_squared': model.rsquared_adj
                     }
                     
-                    groups = df_segment_avg['group'].unique()
-                    for group in groups:
-                        group_data = df_segment_avg[df_segment_avg['group'] == group][feature]
-                        result[f'{group}_mean'] = group_data.mean()
-                        result[f'{group}_std'] = group_data.std()
-                        result[f'{group}_n'] = len(group_data)
+                    if 'group' in df_segment_avg.columns:
+                        groups = df_segment_avg['group'].unique()
+                        for group in groups:
+                            group_data = df_segment_avg[df_segment_avg['group'] == group][feature]
+                            result[f'{group}_mean'] = group_data.mean()
+                            result[f'{group}_std'] = group_data.std()
+                            result[f'{group}_n'] = len(group_data)
                     
                     for param_name in model.params.index:
                         result[f'{param_name}_coef'] = model.params[param_name]
@@ -236,10 +237,9 @@ def calculate_slice_statistics_lm(full_dataframe, features, sides,
                                   covariates=None, image_type='normalized', formula=None,
                                   correction_method='fdr_bh'):
     
+    # This should thorow and error?
     if covariates is None:
         covariates = []
-    if 'group' not in covariates:
-        covariates = ['group'] + covariates
     
     slice_stats = []
     
@@ -426,15 +426,12 @@ def generate_nerve_maps(path, features=None, sides=None, groups=None,
         # Remove subjects without participant data
         full_dataframe = full_dataframe[full_dataframe['group'].isna() == False]
     
-    
-    groups = np.unique(full_dataframe['group'].values).astype(str).tolist()
-    group_str = '-'.join(groups)
-    path_map = op.join(path, f"maps_{group_str}")
+    path_map = op.join(path, "stats")
     os.makedirs(path_map, exist_ok=True)
     
+    # TODO: change covariates with variables
     covariates = participant_df.columns.tolist()
     covariates.remove('subject')
-    covariates.remove('group')
     
     # Calculate statistics
     if use_linear_model:
@@ -443,8 +440,8 @@ def generate_nerve_maps(path, features=None, sides=None, groups=None,
             full_dataframe, features, sides, covariates, image_type, formula, correction_method
         )
         
-        slice_stats_file = op.join(path_map, f"slice_statistics_lm_{group_str}.xlsx")
-        slice_stats_df.to_excel(slice_stats_file, index=False)
+        slice_stats_file = op.join(path_map, f"slice_statistics_linear_model.csv")
+        slice_stats_df.to_csv(slice_stats_file, index=False)
         logger.info(f"Saved slice statistics: {slice_stats_file}")
         
         # Segment statistics
@@ -452,17 +449,23 @@ def generate_nerve_maps(path, features=None, sides=None, groups=None,
             full_dataframe, features, sides, covariates, image_type, formula, correction_method
         )
         
-        segment_stats_file = op.join(path_map, f"segment_statistics_lm_{group_str}.xlsx")
-        segment_stats_df.to_excel(segment_stats_file, index=False)
+        segment_stats_file = op.join(path_map, f"segment_statistics_linear_model.csv")
+        segment_stats_df.to_csv(segment_stats_file, index=False)
         logger.info(f"Saved segment statistics: {segment_stats_file}")
         
         if do_figures:
+            
+            plot_segment_statistics_lm(segment_stats_df, path_map)
+            
             # Get all parameter columns (exclude Intercept)
             param_cols = [col.replace('_coef', '') for col in segment_stats_df.columns 
                           if col.endswith('_coef') and col != 'Intercept_coef']
             
-            plot_segment_statistics_lm(segment_stats_df, path_map)
-            plot_segment_statistics(segment_stats_df, groups[0], groups[1], path_map)
+            # TODO: This is a bit hacky, we should have a better way to specify which parameter to plot
+            if 'group' in param_cols:
+                groups = full_dataframe['group'].unique()
+                if len(groups) == 2:
+                    plot_segment_statistics(segment_stats_df, groups[0], groups[1], path_map)
             
             # Generate nerve maps for each parameter
             for param_name in param_cols:
@@ -480,7 +483,7 @@ def generate_nerve_maps(path, features=None, sides=None, groups=None,
                     
                 
                     plot_nerve_maps_with_stats(nerve_data_coef, param_name, key,
-                                            'coef', path_map)
+                                               'coef', path_map)
                     plot_nerve_maps_with_stats(nerve_thresholded_p, param_name, key,
                                                'p_corrected', path_map)
                     plot_nerve_maps_with_stats(nerve_thresholded_punc, param_name, key,
@@ -495,8 +498,8 @@ def generate_nerve_maps(path, features=None, sides=None, groups=None,
             full_dataframe, groups[0], groups[1], features, sides, image_type
         )
         
-        segment_stats_file = op.join(path_map, f"segment_statistics_{groups[0]}_vs_{groups[1]}.xlsx")
-        segment_stats_df.to_excel(segment_stats_file, index=False)
+        segment_stats_file = op.join(path_map, f"segment_statistics_{groups[0]}_vs_{groups[1]}.csv")
+        segment_stats_df.to_csv(segment_stats_file, index=False)
         
         if do_figures:
             plot_segment_statistics(segment_stats_df, groups[0], groups[1], path_map)
