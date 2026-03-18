@@ -70,6 +70,33 @@ def create_nerve_map(dataframe, feature):
     return nerve_map
 
 
+def load_participants(path):
+    participant_file = op.join(path, "participants.xlsx")
+    logger.info(f"Loading participant data from: {participant_file}")
+    participant_df = pd.read_excel(participant_file)
+    participant_df['subject'] = participant_df['subject'].astype(str)
+    return participant_df
+
+def load_data(path, participant_df):
+    results_fname = op.join(path, "results", "CSA_slice_iso.xlsx")
+    logger.info(f"Loading results from: {results_fname}")
+    dataframe = pd.read_excel(results_fname)
+    
+    # Join dataframe by id
+    full_dataframe = pd.merge(dataframe, participant_df, on='subject', how='inner')
+    
+    missing_subjects = set(dataframe['subject'].unique()) - set(full_dataframe['subject'].unique())
+    if missing_subjects:
+        logger.warning(f"Missing participant data for subjects: {missing_subjects}")
+        
+        # Remove subjects without participant data
+        full_dataframe = full_dataframe[full_dataframe['group'].isna() == False]
+    
+    return full_dataframe
+
+
+
+
 def calculate_segment_statistics(full_dataframe, dataset_a, dataset_b, features, sides, image_type='normalized'):
     """
     Calculate statistical tests for each anatomical segment.
@@ -406,32 +433,12 @@ def generate_nerve_maps(path, features=None, sides=None, groups=None,
     dataframe = []
     do_figures = generate_figures
         
-    results_fname = op.join(path, "results", "CSA_slice_iso.xlsx")
-    logger.info(f"Loading results from: {results_fname}")
-    dataframe = pd.read_excel(results_fname)
-    
-    participant_file = op.join(path, "participants.xlsx")
-    logger.info(f"Loading participant data from: {participant_file}")
-    participant_df = pd.read_excel(participant_file)
-    
-    participant_df['subject'] = participant_df['subject'].astype(str)
 
-    # Join dataframe by id
-    full_dataframe = pd.merge(dataframe, participant_df, on='subject', how='inner')
     
-    missing_subjects = set(dataframe['subject'].unique()) - set(full_dataframe['subject'].unique())
-    if missing_subjects:
-        logger.warning(f"Missing participant data for subjects: {missing_subjects}")
-        
-        # Remove subjects without participant data
-        full_dataframe = full_dataframe[full_dataframe['group'].isna() == False]
     
-    path_map = op.join(path, "stats")
-    os.makedirs(path_map, exist_ok=True)
+
     
-    # TODO: change covariates with variables
-    covariates = participant_df.columns.tolist()
-    covariates.remove('subject')
+
     
     # Calculate statistics
     if use_linear_model:
@@ -517,6 +524,17 @@ def main(path="./", groups=None, debug=False, use_linear_model=True,
     logger.info("Starting aVP-Toolbox statistical analysis")
     
     try:
+        
+        participant_df = load_participants(path)
+        full_dataframe = load_data(path, participant_df)
+        
+        result_path = op.join(path, "stats")
+        os.makedirs(result_path, exist_ok=True)
+        
+        # TODO: change covariates with variables
+        covariates = participant_df.columns.tolist()
+        covariates.remove('subject')
+        
         slice_stats_df, segment_stats_df = generate_nerve_maps(
             path=path,
             groups=groups,
