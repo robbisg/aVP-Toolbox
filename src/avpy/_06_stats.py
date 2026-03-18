@@ -144,6 +144,99 @@ def calculate_segment_statistics(full_dataframe, dataset_a, dataset_b, features,
     return segment_stats_df
 
 
+def calculate_statistics_lm(full_dataframe, features, sides, 
+                            covariates=None, image_type='normalized', formula=None,
+                            correction_method='fdr_bh', kind='slice'):
+    
+    logger.info(f"Calculating {kind}-based statistics with linear models...")
+    
+    if covariates is None:
+        covariates = []
+    
+    if 'group' not in covariates:
+        covariates = ['group'] + covariates
+    
+    if kind == 'slice':
+        keyword = 'current_slice_yz'
+    else:
+        keyword = 'segment'
+
+
+    stats = []
+    
+    for feature in features:
+        for side in sides:
+            df = filter_dataframe(full_dataframe, 
+                                  side=[side], 
+                                  image_type=[image_type])
+            
+            uniques = np.unique(df[keyword].values)
+            
+            for unique_value in uniques:
+                
+                mask = df[keyword] == unique_value
+                df_filtered = df[mask]
+                
+                if kind == 'segment':
+                    groupby_cols = ['subject'] + covariates
+                    df_filtered = df_filtered.groupby(groupby_cols)[feature].mean().reset_index()                
+                
+                if formula is None:
+                    formula_str = f'{feature} ~ ' + ' + '.join(covariates)
+                else:
+                    formula_str = formula.replace('feature', feature)
+                
+                try:
+                    model = ols(formula_str, data=df_filtered).fit()
+                    
+                    result = {
+                         kind : unique_value,
+                        'side': side,
+                        'feature': feature,
+                        'n_samples': len(df_filtered),
+                        'r_squared': model.rsquared,
+                        'adj_r_squared': model.rsquared_adj
+                    }
+                    
+                    groups = df_segment_avg['group'].unique()
+                    for group in groups:
+                        group_data = df_segment_avg[df_segment_avg['group'] == group][feature]
+                        result[f'{group}_mean'] = group_data.mean()
+                        result[f'{group}_std'] = group_data.std()
+                        result[f'{group}_n'] = len(group_data)
+                    
+                    for param_name in model.params.index:
+                        result[f'{param_name}_coef'] = model.params[param_name]
+                        result[f'{param_name}_se'] = model.bse[param_name]
+                        result[f'{param_name}_t'] = model.tvalues[param_name]
+                        result[f'{param_name}_p'] = model.pvalues[param_name]
+                    
+                    stats.append(result)
+                    
+                except Exception as e:
+                    logger.warning(f"Failed to fit model for {segment_name}, {side}, {feature}: {e}")
+                    continue
+    
+    stats_df = pd.DataFrame(stats)
+    
+    if len(stats_df) > 0:
+        param_cols = [col for col in stats_df.columns if col.endswith('_p')]
+        
+        for p_col in param_cols:
+            param_name = p_col.replace('_p', '')
+            p_values = stats_df[p_col].values
+            reject, p_corrected, _, _ = multipletests(p_values, method=correction_method)
+            
+            stats_df[f'{param_name}_p_corrected'] = p_corrected
+            stats_df[f'{param_name}_significant'] = reject
+        
+        for col in stats_df.columns:
+            if col.endswith('_significant'):
+                param_name = col.replace('_significant', '')
+                n_sig = stats_df[col].sum()
+                logger.info(f"{param_name}: {n_sig} significant ({correction_method})")
+    
+    return stats_df
 
 
 def calculate_segment_statistics_lm(full_dataframe, features, sides, 
@@ -238,6 +331,7 @@ def calculate_slice_statistics_lm(full_dataframe, features, sides,
     
     if covariates is None:
         covariates = []
+        
     if 'group' not in covariates:
         covariates = ['group'] + covariates
     
@@ -245,9 +339,13 @@ def calculate_slice_statistics_lm(full_dataframe, features, sides,
     
     for feature in features:
         for side in sides:
-            df = filter_dataframe(full_dataframe, side=[side], image_type=[image_type])
+            df = filter_dataframe(full_dataframe, 
+                                  side=[side], 
+                                  image_type=[image_type])
             
-            for slice_idx in df['current_slice_yz'].unique():
+            fslice = df['current_slice_yz'].unique()
+            
+            for slice_idx in fslice:
                 df_slice = df[df['current_slice_yz'] == slice_idx]
                 
                 if formula is None:
@@ -315,7 +413,9 @@ def create_statistical_nerve_maps(segment_stats_df, param_name='group[T.PTS]', s
     
     for feature in features:
         for side in sides:
-            nerve_map = np.zeros((atlas_data.shape[0], atlas_data.shape[1], atlas_data.shape[2]))
+            nerve_map = np.zeros((atlas_data.shape[0], 
+                                  atlas_data.shape[1], 
+                                  atlas_data.shape[2]))
             
             df_plot = segment_stats_df[
                 (segment_stats_df['feature'] == feature) & 
@@ -388,11 +488,42 @@ def create_slice_nerve_maps(slice_stats_df, param_name, stat_type='coef'):
     return nerve_maps
 
 
+def load_data(path, participant_df):
+    
+    results_fname = op.join(path, "results", "CSA_slice_iso.xlsx")
+    logger.info(f"Loading results from: {results_fname}")
+    dataframe = pd.read_excel(results_fname)
+    
+    # Join dataframe by id
+    full_dataframe = pd.merge(dataframe, participant_df, on='subject', how='inner')
+    
+    missing_subjects = set(dataframe['subject'].unique()) - set(full_dataframe['subject'].unique())
+    if missing_subjects:
+        logger.warning(f"Missing participant data for subjects: {missing_subjects}")
+        
+        # Remove subjects without participant data
+        full_dataframe = full_dataframe[full_dataframe['group'].isna() == False]
+    
+    return full_dataframe
+
+
+def load_participants(path):
+    
+    participant_file = op.join(path, "participants.xlsx")
+    logger.info(f"Loading participant data from: {participant_file}")
+    participant_df = pd.read_excel(participant_file)
+    
+    participant_df['subject'] = participant_df['subject'].astype(str)
+    
+    return participant_df
+
+
+
 def generate_nerve_maps(path, features=None, sides=None, groups=None,
-                       image_type='normalized', p_value=0.05, 
-                       generate_figures=True, debug=False, 
-                       use_linear_model=True, covariates=None, formula=None,
-                       correction_method='fdr_bh'):
+                        image_type='normalized', p_value=0.05, 
+                        generate_figures=True, debug=False, 
+                        use_linear_model=True, covariates=None, formula=None,
+                        correction_method='fdr_bh'):
     
     if debug:
         logging.basicConfig(level=logging.DEBUG)
@@ -406,26 +537,8 @@ def generate_nerve_maps(path, features=None, sides=None, groups=None,
     dataframe = []
     do_figures = generate_figures
         
-    results_fname = op.join(path, "results", "CSA_slice_iso.xlsx")
-    logger.info(f"Loading results from: {results_fname}")
-    dataframe = pd.read_excel(results_fname)
-    
-    participant_file = op.join(path, "participants.xlsx")
-    logger.info(f"Loading participant data from: {participant_file}")
-    participant_df = pd.read_excel(participant_file)
-    
-    participant_df['subject'] = participant_df['subject'].astype(str)
-
-    # Join dataframe by id
-    full_dataframe = pd.merge(dataframe, participant_df, on='subject', how='inner')
-    
-    missing_subjects = set(dataframe['subject'].unique()) - set(full_dataframe['subject'].unique())
-    if missing_subjects:
-        logger.warning(f"Missing participant data for subjects: {missing_subjects}")
-        
-        # Remove subjects without participant data
-        full_dataframe = full_dataframe[full_dataframe['group'].isna() == False]
-    
+    participant_df = load_participants(path)
+    full_dataframe = load_data(path, participant_df)
     
     groups = np.unique(full_dataframe['group'].values).astype(str).tolist()
     group_str = '-'.join(groups)
@@ -443,8 +556,8 @@ def generate_nerve_maps(path, features=None, sides=None, groups=None,
             full_dataframe, features, sides, covariates, image_type, formula, correction_method
         )
         
-        slice_stats_file = op.join(path_map, f"slice_statistics_lm_{group_str}.xlsx")
-        slice_stats_df.to_excel(slice_stats_file, index=False)
+        slice_stats_file = op.join(path_map, f"slice_statistics_lm_{group_str}.csv")
+        slice_stats_df.to_csv(slice_stats_file, index=False)
         logger.info(f"Saved slice statistics: {slice_stats_file}")
         
         # Segment statistics
@@ -452,8 +565,8 @@ def generate_nerve_maps(path, features=None, sides=None, groups=None,
             full_dataframe, features, sides, covariates, image_type, formula, correction_method
         )
         
-        segment_stats_file = op.join(path_map, f"segment_statistics_lm_{group_str}.xlsx")
-        segment_stats_df.to_excel(segment_stats_file, index=False)
+        segment_stats_file = op.join(path_map, f"segment_statistics_lm_{group_str}.csv")
+        segment_stats_df.to_csv(segment_stats_file, index=False)
         logger.info(f"Saved segment statistics: {segment_stats_file}")
         
         if do_figures:
@@ -495,8 +608,8 @@ def generate_nerve_maps(path, features=None, sides=None, groups=None,
             full_dataframe, groups[0], groups[1], features, sides, image_type
         )
         
-        segment_stats_file = op.join(path_map, f"segment_statistics_{groups[0]}_vs_{groups[1]}.xlsx")
-        segment_stats_df.to_excel(segment_stats_file, index=False)
+        segment_stats_file = op.join(path_map, f"segment_statistics_{groups[0]}_vs_{groups[1]}.csv")
+        segment_stats_df.to_csv(segment_stats_file, index=False)
         
         if do_figures:
             plot_segment_statistics(segment_stats_df, groups[0], groups[1], path_map)
@@ -514,6 +627,11 @@ def main(path="./", groups=None, debug=False, use_linear_model=True,
     logger.info("Starting aVP-Toolbox statistical analysis")
     
     try:
+        
+        # 1. Load data from excel
+        # 
+        
+        
         slice_stats_df, segment_stats_df = generate_nerve_maps(
             path=path,
             groups=groups,
@@ -555,3 +673,5 @@ if __name__ == '__main__':
     main(path=args.path, groups=args.groups, debug=args.debug, 
          use_linear_model=args.use_lm, covariates=args.covariates,
          formula=args.formula, correction_method=args.correction)
+    
+    
