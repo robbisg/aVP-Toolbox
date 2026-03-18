@@ -27,8 +27,6 @@ from sekupy.results import apply_function, filter_dataframe
 from scipy.stats import ttest_ind
 import statsmodels.api as sm
 from statsmodels.formula.api import ols
-import statsmodels.api as sm
-from statsmodels.formula.api import ols
 from matplotlib.ticker import FormatStrFormatter
 import matplotlib.pyplot as pl
 import pingouin as pg
