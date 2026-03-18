@@ -77,6 +77,7 @@ def load_participants(path):
     participant_df['subject'] = participant_df['subject'].astype(str)
     return participant_df
 
+
 def load_data(path, participant_df):
     results_fname = op.join(path, "results", "CSA_slice_iso.xlsx")
     logger.info(f"Loading results from: {results_fname}")
@@ -174,6 +175,7 @@ def calculate_segment_statistics(full_dataframe, dataset_a, dataset_b, features,
 def calculate_statistics_lm(full_dataframe, features, sides, kind='segment',
                             covariates=None, image_type='normalized', formula=None,
                             correction_method='fdr_bh'):
+    
     logger.info(f"Calculating {kind}-based statistics with linear models...")
     
     # This should thorow and error?
@@ -182,6 +184,7 @@ def calculate_statistics_lm(full_dataframe, features, sides, kind='segment',
     
     stats = []
     
+    
     if kind == 'segment':
         grouping_var = 'segment_name'
     elif kind == 'slice':
@@ -189,6 +192,7 @@ def calculate_statistics_lm(full_dataframe, features, sides, kind='segment',
     else:
         kind = 'segment'
         logger.warning(f"Invalid kind '{kind}' specified. Defaulting to 'segment'.")
+    
     
     for feature in features:
         for side in sides:
@@ -355,11 +359,10 @@ def create_slice_nerve_maps(slice_stats_df, param_name, stat_type='coef'):
     return nerve_maps
 
 
-def generate_nerve_maps(path, features=None, sides=None, groups=None,
-                       image_type='normalized', p_value=0.05, 
-                       generate_figures=True, debug=False, 
-                       use_linear_model=True, covariates=None, formula=None,
-                       correction_method='fdr_bh'):
+def generate_statistics(dataframe, features, sides, results_path, covariates=None, image_type='normalized',
+                        formula=None, correction_method='fdr_bh', debug=False,
+                        kind='segment', p_value=0.05, use_linear_model=True, 
+                        do_figures=True):
     
     if debug:
         logging.basicConfig(level=logging.DEBUG)
@@ -370,86 +373,76 @@ def generate_nerve_maps(path, features=None, sides=None, groups=None,
         logger.info(f"Covariates: {covariates if covariates else 'all'}")
         logger.info(f"Correction: {correction_method}")
     
-    dataframe = []
-    do_figures = generate_figures   
-
     
-    # Calculate statistics
+    # Get all parameter columns (exclude Intercept)
+    param_cols = [col.replace('_coef', '') for col in stats_df.columns 
+                  if col.endswith('_coef') and col != 'Intercept_coef']
+    
+    
     if use_linear_model:
-        # Slice-wise statistics
-        slice_stats_df = calculate_statistics_lm(
-            full_dataframe, features, sides, covariates, image_type, formula, correction_method, 
-            kind='slice'
+        
+        stats_df = calculate_statistics_lm(
+            dataframe, features, sides, covariates, image_type, formula, correction_method, 
+            kind=kind
         )
         
-        slice_stats_file = op.join(path_map, f"slice_statistics_linear_model.csv")
-        slice_stats_df.to_csv(slice_stats_file, index=False)
-        logger.info(f"Saved slice statistics: {slice_stats_file}")
-        
-        # Segment statistics
-        segment_stats_df = calculate_statistics_lm(
-            full_dataframe, features, sides, covariates, image_type, formula, correction_method, 
-            kind='segment'
-        )
-        
-        segment_stats_file = op.join(path_map, f"segment_statistics_linear_model.csv")
-        segment_stats_df.to_csv(segment_stats_file, index=False)
-        logger.info(f"Saved segment statistics: {segment_stats_file}")
-        
-        if do_figures:
-            
-            plot_segment_statistics_lm(segment_stats_df, path_map)
-            
-            # Get all parameter columns (exclude Intercept)
-            param_cols = [col.replace('_coef', '') for col in segment_stats_df.columns 
-                          if col.endswith('_coef') and col != 'Intercept_coef']
-            
-            # TODO: This is a bit hacky, we should have a better way to specify which parameter to plot
-            if 'group' in param_cols:
-                groups = full_dataframe['group'].unique()
-                if len(groups) == 2:
-                    plot_segment_statistics(segment_stats_df, groups[0], groups[1], path_map)
-            
-            # Generate nerve maps for each parameter
-            for param_name in param_cols:
-                # Slice-wise nerve maps
-                nerve_maps_coef = create_slice_nerve_maps(slice_stats_df, param_name, 'coef')
-                nerve_maps_p = create_slice_nerve_maps(slice_stats_df, param_name, 'p_corrected')
-                nerve_maps_punc = create_slice_nerve_maps(slice_stats_df, param_name, 'p')
-                
-                for key, nerve_data_coef in nerve_maps_coef.items():
-                    nerve_data_p = nerve_maps_p[key]
-                    nerve_data_punc = nerve_maps_punc[key]
-                                    
-                    nerve_thresholded_p = nerve_data_coef * (nerve_data_p <= p_value)
-                    nerve_thresholded_punc = nerve_data_coef * (nerve_data_punc <= p_value)
-                    
-                
-                    plot_nerve_maps_with_stats(nerve_data_coef, param_name, key,
-                                               'coef', path_map)
-                    plot_nerve_maps_with_stats(nerve_thresholded_p, param_name, key,
-                                               'p_corrected', path_map)
-                    plot_nerve_maps_with_stats(nerve_thresholded_punc, param_name, key,
-                                               'p_uncorrected', path_map)
-                
-                # Segment nerve maps
     else:
+        
+        if 'group' not in dataframe.columns:
+            raise ValueError("Dataframe must contain 'group' column for t-test mode. Use --use-lm for linear models.")
+                
+        groups = dataframe['group'].unique()
         if len(groups) != 2:
             raise ValueError("t-test mode requires exactly 2 groups. Use --use-lm for more.")
         
         segment_stats_df = calculate_segment_statistics(
-            full_dataframe, groups[0], groups[1], features, sides, image_type
+            dataframe, groups[0], groups[1], features, sides, image_type
         )
         
-        segment_stats_file = op.join(path_map, f"segment_statistics_{groups[0]}_vs_{groups[1]}.csv")
+        segment_stats_file = op.join(results_path, f"segment_statistics_{groups[0]}_vs_{groups[1]}.csv")
         segment_stats_df.to_csv(segment_stats_file, index=False)
         
         if do_figures:
-            plot_segment_statistics(segment_stats_df, groups[0], groups[1], path_map)
+            plot_segment_statistics(segment_stats_df, groups[0], groups[1], results_path)
             
+        return
     
-    return slice_stats_df if use_linear_model else None, segment_stats_df
 
+    
+    if kind == 'segment':
+        plot_segment_statistics_lm(stats_df, results_path)
+
+        if 'group' in param_cols:
+            groups = dataframe['group'].unique()
+            if len(groups) == 2:
+                plot_segment_statistics(stats_df, groups[0], groups[1], results_path)
+        
+    else:
+        # Generate nerve maps for each parameter
+        for param_name in param_cols:
+            # Slice-wise nerve maps
+            nerve_maps_coef = create_slice_nerve_maps(stats_df, param_name, 'coef')
+            nerve_maps_p = create_slice_nerve_maps(stats_df, param_name, 'p_corrected')
+            nerve_maps_punc = create_slice_nerve_maps(stats_df, param_name, 'p')
+            
+            for key, nerve_data_coef in nerve_maps_coef.items():
+                nerve_data_p = nerve_maps_p[key]
+                nerve_data_punc = nerve_maps_punc[key]
+                                
+                nerve_thresholded_p = nerve_data_coef * (nerve_data_p <= p_value)
+                nerve_thresholded_punc = nerve_data_coef * (nerve_data_punc <= p_value)
+                
+            
+                plot_nerve_maps_with_stats(nerve_data_coef, param_name, key,
+                                            'coef', results_path)
+                plot_nerve_maps_with_stats(nerve_thresholded_p, param_name, key,
+                                            'p_corrected', results_path)
+                plot_nerve_maps_with_stats(nerve_thresholded_punc, param_name, key,
+                                            'p_uncorrected', results_path)
+                
+                
+    return
+        
 
 def main(path="./", groups=None, debug=False, use_linear_model=True, 
          features=None, sides=None, covariates=None, 
@@ -471,25 +464,20 @@ def main(path="./", groups=None, debug=False, use_linear_model=True,
         # TODO: change covariates with variables
         covariates = participant_df.columns.tolist()
         covariates.remove('subject')
-               
         
-        slice_stats_df, segment_stats_df = generate_nerve_maps(
-            path=path,
-            groups=groups,
-            sides=['r'],
-            features=['area'],
-            image_type='normalized',
-            p_value=0.05,
-            generate_figures=True,
-            debug=debug,
-            use_linear_model=use_linear_model,
-            covariates=covariates,
-            formula=formula,
-            correction_method=correction_method
-        )
+        
+        generate_statistics(dataframe=full_dataframe, features=features, sides=sides, results_path=result_path,
+                            covariates=covariates, image_type='normalized', formula=formula,
+                            correction_method=correction_method, kind='segment', p_value=0.05)
+        
+        generate_statistics(dataframe=full_dataframe, features=features, sides=sides, results_path=result_path,
+                            covariates=covariates, image_type='normalized', formula=formula,
+                            correction_method=correction_method, kind='slice', p_value=0.05)
+        
+
         
         logger.info("Analysis completed successfully")
-        return slice_stats_df, segment_stats_df
+        return 
         
     except Exception as e:
         logger.error(f"Error: {e}")
