@@ -171,21 +171,24 @@ def calculate_segment_statistics(full_dataframe, dataset_a, dataset_b, features,
     return segment_stats_df
 
 
-
-
-def calculate_segment_statistics_lm(full_dataframe, features, sides, 
-                                    covariates=None, image_type='normalized', formula=None,
-                                    correction_method='fdr_bh'):
-    # TODO: Use the a unique function for both segment and slice statistics,
-    # with an argument to specify the grouping variable (segment vs slice)
-    
-    logger.info("Calculating segment-based statistics with linear models...")
+def calculate_statistics_lm(full_dataframe, features, sides, kind='segment',
+                            covariates=None, image_type='normalized', formula=None,
+                            correction_method='fdr_bh'):
+    logger.info(f"Calculating {kind}-based statistics with linear models...")
     
     # This should thorow and error?
     if covariates is None:
         covariates = []
     
-    segment_stats = []
+    stats = []
+    
+    if kind == 'segment':
+        grouping_var = 'segment_name'
+    elif kind == 'slice':
+        grouping_var = 'current_slice_yz'
+    else:
+        kind = 'segment'
+        logger.warning(f"Invalid kind '{kind}' specified. Defaulting to 'segment'.")
     
     for feature in features:
         for side in sides:
@@ -193,13 +196,15 @@ def calculate_segment_statistics_lm(full_dataframe, features, sides,
                                   side=[side], 
                                   image_type=[image_type])
             
-            fsegments = np.unique(df['segment_name'].values)
+            unique_portions = np.unique(df[grouping_var].values)
             
-            for segment_name in fsegments:
-                df_segment = df[df['segment_name'] == segment_name]
+            for portion_name in unique_portions:
+                df_portion = df[df[grouping_var] == portion_name]
 
-                groupby_cols = ['subject'] + covariates
-                df_segment_avg = df_segment.groupby(groupby_cols)[feature].mean().reset_index()
+                
+                if kind == 'segment':
+                    groupby_cols = ['subject'] + covariates
+                    df_portion = df_portion.groupby(groupby_cols)[feature].mean().reset_index()
                 
                 if formula is None:
                     formula_str = f'{feature} ~ ' + ' + '.join(covariates)
@@ -207,21 +212,21 @@ def calculate_segment_statistics_lm(full_dataframe, features, sides,
                     formula_str = formula.replace('feature', feature)
                 
                 try:
-                    model = ols(formula_str, data=df_segment_avg).fit()
+                    model = ols(formula_str, data=df_portion).fit()
                     
                     result = {
-                        'segment': segment_name,
+                        kind : portion_name,
                         'side': side,
                         'feature': feature,
-                        'n_samples': len(df_segment_avg),
+                        'n_samples': len(df_portion),
                         'r_squared': model.rsquared,
                         'adj_r_squared': model.rsquared_adj
                     }
                     
-                    if 'group' in df_segment_avg.columns:
-                        groups = df_segment_avg['group'].unique()
+                    if 'group' in df_portion.columns:
+                        groups = df_portion['group'].unique()
                         for group in groups:
-                            group_data = df_segment_avg[df_segment_avg['group'] == group][feature]
+                            group_data = df_portion[df_portion['group'] == group][feature]
                             result[f'{group}_mean'] = group_data.mean()
                             result[f'{group}_std'] = group_data.std()
                             result[f'{group}_n'] = len(group_data)
@@ -232,98 +237,33 @@ def calculate_segment_statistics_lm(full_dataframe, features, sides,
                         result[f'{param_name}_t'] = model.tvalues[param_name]
                         result[f'{param_name}_p'] = model.pvalues[param_name]
                     
-                    segment_stats.append(result)
+                    stats.append(result)
                     
                 except Exception as e:
-                    logger.warning(f"Failed to fit model for {segment_name}, {side}, {feature}: {e}")
+                    logger.warning(f"Failed to fit model for {portion_name}, {side}, {feature}: {e}")
                     continue
     
-    segment_stats_df = pd.DataFrame(segment_stats)
+    stats_df = pd.DataFrame(stats)
     
-    if len(segment_stats_df) > 0:
-        param_cols = [col for col in segment_stats_df.columns if col.endswith('_p')]
+    if len(stats_df) > 0:
+        param_cols = [col for col in stats_df.columns if col.endswith('_p')]
         
         for p_col in param_cols:
             param_name = p_col.replace('_p', '')
-            p_values = segment_stats_df[p_col].values
+            p_values = stats_df[p_col].values
             reject, p_corrected, _, _ = multipletests(p_values, method=correction_method)
             
-            segment_stats_df[f'{param_name}_p_corrected'] = p_corrected
-            segment_stats_df[f'{param_name}_significant'] = reject
+            stats_df[f'{param_name}_p_corrected'] = p_corrected
+            stats_df[f'{param_name}_significant'] = reject
         
-        for col in segment_stats_df.columns:
+        for col in stats_df.columns:
             if col.endswith('_significant'):
                 param_name = col.replace('_significant', '')
-                n_sig = segment_stats_df[col].sum()
+                n_sig = stats_df[col].sum()
                 logger.info(f"{param_name}: {n_sig} significant ({correction_method})")
     
-    return segment_stats_df
+    return stats_df
 
-
-def calculate_slice_statistics_lm(full_dataframe, features, sides, 
-                                  covariates=None, image_type='normalized', formula=None,
-                                  correction_method='fdr_bh'):
-    
-    # This should thorow and error?
-    if covariates is None:
-        covariates = []
-    
-    slice_stats = []
-    
-    for feature in features:
-        for side in sides:
-            df = filter_dataframe(full_dataframe, side=[side], image_type=[image_type])
-            
-            for slice_idx in df['current_slice_yz'].unique():
-                df_slice = df[df['current_slice_yz'] == slice_idx]
-                
-                if formula is None:
-                    formula_str = f'{feature} ~ ' + ' + '.join(covariates)
-                else:
-                    formula_str = formula.replace('feature', feature)
-                
-                try:
-                    model = ols(formula_str, data=df_slice).fit()
-                    
-                    result = {
-                        'slice': slice_idx,
-                        'side': side,
-                        'feature': feature,
-                        'n_samples': len(df_slice)
-                    }
-                    
-                    for param_name in model.params.index:
-                        result[f'{param_name}_coef'] = model.params[param_name]
-                        result[f'{param_name}_se'] = model.bse[param_name]
-                        result[f'{param_name}_t'] = model.tvalues[param_name]
-                        result[f'{param_name}_p'] = model.pvalues[param_name]
-                    
-                    slice_stats.append(result)
-                    
-                except Exception as e:
-                    logger.warning(f"Failed to fit model for slice {slice_idx}, {side}, {feature}: {e}")
-                    continue
-    
-    slice_stats_df = pd.DataFrame(slice_stats)
-    
-    if len(slice_stats_df) > 0:
-        param_cols = [col for col in slice_stats_df.columns if col.endswith('_p')]
-        
-        for p_col in param_cols:
-            param_name = p_col.replace('_p', '')
-            p_values = slice_stats_df[p_col].values
-            reject, p_corrected, _, _ = multipletests(p_values, method=correction_method)
-            
-            slice_stats_df[f'{param_name}_p_corrected'] = p_corrected
-            slice_stats_df[f'{param_name}_significant'] = reject
-        
-        for col in slice_stats_df.columns:
-            if col.endswith('_significant'):
-                param_name = col.replace('_significant', '')
-                n_sig = slice_stats_df[col].sum()
-                logger.info(f"{param_name}: {n_sig} significant ({correction_method})")
-    
-    return slice_stats_df
 
 
 def create_statistical_nerve_maps(segment_stats_df, param_name='group[T.PTS]', stat_type='coef'):
@@ -431,20 +371,15 @@ def generate_nerve_maps(path, features=None, sides=None, groups=None,
         logger.info(f"Correction: {correction_method}")
     
     dataframe = []
-    do_figures = generate_figures
-        
-
-    
-    
-
-    
+    do_figures = generate_figures   
 
     
     # Calculate statistics
     if use_linear_model:
         # Slice-wise statistics
-        slice_stats_df = calculate_slice_statistics_lm(
-            full_dataframe, features, sides, covariates, image_type, formula, correction_method
+        slice_stats_df = calculate_statistics_lm(
+            full_dataframe, features, sides, covariates, image_type, formula, correction_method, 
+            kind='slice'
         )
         
         slice_stats_file = op.join(path_map, f"slice_statistics_linear_model.csv")
@@ -452,8 +387,9 @@ def generate_nerve_maps(path, features=None, sides=None, groups=None,
         logger.info(f"Saved slice statistics: {slice_stats_file}")
         
         # Segment statistics
-        segment_stats_df = calculate_segment_statistics_lm(
-            full_dataframe, features, sides, covariates, image_type, formula, correction_method
+        segment_stats_df = calculate_statistics_lm(
+            full_dataframe, features, sides, covariates, image_type, formula, correction_method, 
+            kind='segment'
         )
         
         segment_stats_file = op.join(path_map, f"segment_statistics_linear_model.csv")
@@ -516,7 +452,8 @@ def generate_nerve_maps(path, features=None, sides=None, groups=None,
 
 
 def main(path="./", groups=None, debug=False, use_linear_model=True, 
-         covariates=None, formula=None, correction_method='fdr_bh'):
+         features=None, sides=None, covariates=None, 
+         formula=None, correction_method='fdr_bh'):
     
     if debug:
         logging.basicConfig(level=logging.DEBUG)
@@ -534,6 +471,7 @@ def main(path="./", groups=None, debug=False, use_linear_model=True,
         # TODO: change covariates with variables
         covariates = participant_df.columns.tolist()
         covariates.remove('subject')
+               
         
         slice_stats_df, segment_stats_df = generate_nerve_maps(
             path=path,
@@ -564,6 +502,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Statistical analysis for aVP-Toolbox")
     parser.add_argument("--path", type=str, default="./")
     parser.add_argument("--groups", type=str, nargs='+')
+    parser.add_argument("--features", type=str, nargs='+', default=['area'], help="Features to analyze (e.g. area, diameter).")
+    parser.add_argument("--side", type=str, nargs='+', choices=['r', 'l', 'both'], default='both', help="Side to analyze (r, l, or both).")
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--use-lm", action="store_true")
     parser.add_argument("--covariates", type=str, nargs='+')
@@ -573,6 +513,6 @@ if __name__ == '__main__':
     
     args = parser.parse_args()
     
-    main(path=args.path, groups=args.groups, debug=args.debug, 
-         use_linear_model=args.use_lm, covariates=args.covariates,
+    main(path=args.path, groups=args.groups, debug=args.debug, features=args.features, 
+         sides=args.side, use_linear_model=args.use_lm, covariates=args.covariates,
          formula=args.formula, correction_method=args.correction)
