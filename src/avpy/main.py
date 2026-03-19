@@ -119,10 +119,14 @@ def main():
         Currently not used in this script."
     )
     # Add argument from stats function
-    parser.add_argument("--groups", type=str, nargs='+')
+    parser.add_argument("--features", type=str, nargs='+', default=['area'], help="Features to analyze (e.g. area, eccentricity).")
+    parser.add_argument("--side", type=str, nargs='+', choices=['r', 'l', 'both'], default='both', help="Side to analyze (r, l, or both).")
     parser.add_argument("--use-lm", action="store_true", default=True)
-    parser.add_argument("--covariates", type=str, nargs='+')
-    parser.add_argument("--formula", type=str)
+    parser.add_argument("--covariate_file", type=str,
+                        default="participants.xlsx", 
+                        help="Path to covariate file (Excel).")
+    parser.add_argument("--formula", type=str, help="Custom formula for linear model (e.g. 'feature ~ group + age')." +  
+                        "Use 'feature' as placeholder for the feature name.")
     parser.add_argument("--correction", type=str, default='fdr_bh',
                        choices=['bonferroni', 'fdr_bh', 'fdr_by', 'holm', 'hommel'])
     options = parser.parse_args()
@@ -160,9 +164,8 @@ def main():
                 logger.info(f"Running {step_name}...")
                 STEP_MODULES[step_name].main(
                     path=options.root_dir,
-                    groups=options.groups, 
                     use_linear_model=options.use_lm, 
-                    covariates=options.covariates,
+                    covariate_file=options.covariate_file,
                     formula=options.formula, 
                     correction_method=options.correction,
                     debug=options.debug

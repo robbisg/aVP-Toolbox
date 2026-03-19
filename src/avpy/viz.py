@@ -147,10 +147,10 @@ def plot_segment_statistics(segment_stats_df, dataset_a, dataset_b, path_map):
             
             # Create bars
             bars1 = ax.bar(x_pos - width/2, means_a, width, 
-                          yerr=stds_a, label=dataset_a, 
+                          yerr=stds_a, label=str(dataset_a), 
                           color='#e74c3c', alpha=0.8, capsize=5)
             bars2 = ax.bar(x_pos + width/2, means_b, width, 
-                          yerr=stds_b, label=dataset_b, 
+                          yerr=stds_b, label=str(dataset_b), 
                           color='#3498db', alpha=0.8, capsize=5)
             
             # Add significance markers
@@ -158,6 +158,7 @@ def plot_segment_statistics(segment_stats_df, dataset_a, dataset_b, path_map):
             for i, row in df_plot.iterrows():
                 y_pos = np.max([row[f'{dataset_a}_mean'] + row[f'{dataset_a}_std'],
                                 row[f'{dataset_b}_mean'] + row[f'{dataset_b}_std']])
+                
                 if row['group_p_corrected'] < 0.05:
                     # FDR significant
                     ax.text(x_pos[i % len(x_pos)], y_pos * 1.05, '*', 

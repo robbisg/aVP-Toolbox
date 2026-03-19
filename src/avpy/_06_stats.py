@@ -68,31 +68,35 @@ def create_nerve_map(dataframe, feature):
     return nerve_map
 
 
-def load_participants(path):
-    participant_file = op.join(path, "participants.xlsx")
-    logger.info(f"Loading participant data from: {participant_file}")
-    participant_df = pd.read_excel(participant_file)
-    participant_df['subject'] = participant_df['subject'].astype(str)
-    return participant_df
+def load_covariates(path, covariate_file):
+    if covariate_file is None:
+        covariate_fname = op.join(path, "participants.xlsx")
+    else:
+        covariate_fname = op.join(path, covariate_file)
+    
+    logger.info(f"Loading covariate data from: {covariate_fname}")
+    covariate_df = pd.read_excel(covariate_fname)
+    covariate_df['subject'] = covariate_df['subject'].astype(str)
+    return covariate_df
 
 
-def load_data(path, participant_df):
+def load_data(path, covariate_df):
+    
     results_fname = op.join(path, "results", "CSA_slice_iso.xlsx")
     logger.info(f"Loading results from: {results_fname}")
     dataframe = pd.read_excel(results_fname)
     
     # Join dataframe by id
-    full_dataframe = pd.merge(dataframe, participant_df, on='subject', how='inner')
+    full_dataframe = pd.merge(dataframe, covariate_df, on='subject', how='inner')
     
     missing_subjects = set(dataframe['subject'].unique()) - set(full_dataframe['subject'].unique())
     if missing_subjects:
-        logger.warning(f"Missing participant data for subjects: {missing_subjects}")
+        logger.warning(f"Missing covariate data for subjects: {missing_subjects}")
         
-        # Remove subjects without participant data
-        full_dataframe = full_dataframe[full_dataframe['group'].isna() == False]
+        # Remove subjects without covariate data
+        full_dataframe = full_dataframe[full_dataframe[covariate_df.columns[-1]].isna() == False]
     
     return full_dataframe
-
 
 
 
@@ -188,7 +192,7 @@ def calculate_statistics_lm(full_dataframe, features, sides, kind='segment',
     elif kind == 'slice':
         grouping_var = 'current_slice_yz'
     else:
-        kind = 'segment'
+        grouping_var = 'segment_name'
         logger.warning(f"Invalid kind '{kind}' specified. Defaulting to 'segment'.")
     
     
@@ -359,63 +363,27 @@ def create_slice_nerve_maps(slice_stats_df, param_name, stat_type='coef'):
     return nerve_maps
 
 
-def load_data(path, participant_df):
-    
-    results_fname = op.join(path, "results", "CSA_slice_iso.xlsx")
-    logger.info(f"Loading results from: {results_fname}")
-    dataframe = pd.read_excel(results_fname)
-    
-    # Join dataframe by id
-    full_dataframe = pd.merge(dataframe, participant_df, on='subject', how='inner')
-    
-    missing_subjects = set(dataframe['subject'].unique()) - set(full_dataframe['subject'].unique())
-    if missing_subjects:
-        logger.warning(f"Missing participant data for subjects: {missing_subjects}")
-        
-        # Remove subjects without participant data
-        full_dataframe = full_dataframe[full_dataframe['group'].isna() == False]
-    
-    return full_dataframe
-
-
-def load_participants(path):
-    
-    participant_file = op.join(path, "participants.xlsx")
-    logger.info(f"Loading participant data from: {participant_file}")
-    participant_df = pd.read_excel(participant_file)
-    
-    participant_df['subject'] = participant_df['subject'].astype(str)
-    
-    return participant_df
-
-
-
-def generate_statistics(dataframe, features, sides, results_path, covariates=None, image_type='normalized',
-                        formula=None, correction_method='fdr_bh', debug=False,
+def generate_statistics(dataframe, features, sides, results_path, 
+                        covariates=None, image_type='normalized',
+                        formula=None, correction_method='fdr_bh', 
                         kind='segment', p_value=0.05, use_linear_model=True, 
                         do_figures=True):
     
-    if debug:
-        logging.basicConfig(level=logging.DEBUG)
+
     
-    logger.info(f"Starting analysis with groups: {groups}")
-    if use_linear_model:
-        logger.info(f"Formula: {formula if formula else 'auto-generated'}")
-        logger.info(f"Covariates: {covariates if covariates else 'all'}")
-        logger.info(f"Correction: {correction_method}")
-    
-    
-    # Get all parameter columns (exclude Intercept)
-    param_cols = [col.replace('_coef', '') for col in stats_df.columns 
-                  if col.endswith('_coef') and col != 'Intercept_coef']
-    
+    # Get all parameter columns (exclude Intercept)  
     
     if use_linear_model:
         
         stats_df = calculate_statistics_lm(
-            dataframe, features, sides, covariates, image_type, formula, correction_method, 
-            kind=kind
+            dataframe, features, sides, kind, 
+            covariates, image_type, formula, correction_method
         )
+        
+        stats_file = op.join(results_path, f"{kind}_statistics_linear_model.csv")
+        stats_df.to_csv(stats_file, index=False)
+        logger.info(f"Saved {kind} statistics: {stats_file}")
+
         
     else:
         
@@ -439,7 +407,8 @@ def generate_statistics(dataframe, features, sides, results_path, covariates=Non
         return
     
 
-    
+    param_cols = [col.replace('_coef', '') for col in stats_df.columns 
+                  if col.endswith('_coef') and col != 'Intercept_coef']
     if kind == 'segment':
         plot_segment_statistics_lm(stats_df, results_path)
 
@@ -451,14 +420,17 @@ def generate_statistics(dataframe, features, sides, results_path, covariates=Non
     else:
         # Generate nerve maps for each parameter
         for param_name in param_cols:
+            nerve_map_dict = dict()
+            for stat in ['coef', 'p_corrected', 'p']:
+                nerve_map_dict[stat] = create_slice_nerve_maps(stats_df, param_name, stat)
+
             # Slice-wise nerve maps
-            nerve_maps_coef = create_slice_nerve_maps(stats_df, param_name, 'coef')
-            nerve_maps_p = create_slice_nerve_maps(stats_df, param_name, 'p_corrected')
-            nerve_maps_punc = create_slice_nerve_maps(stats_df, param_name, 'p')
+            nerve_maps_coef = nerve_map_dict['coef']
+
             
             for key, nerve_data_coef in nerve_maps_coef.items():
-                nerve_data_p = nerve_maps_p[key]
-                nerve_data_punc = nerve_maps_punc[key]
+                nerve_data_p = nerve_map_dict['p_corrected'][key]
+                nerve_data_punc = nerve_map_dict['p'][key]
                                 
                 nerve_thresholded_p = nerve_data_coef * (nerve_data_p <= p_value)
                 nerve_thresholded_punc = nerve_data_coef * (nerve_data_punc <= p_value)
@@ -475,8 +447,8 @@ def generate_statistics(dataframe, features, sides, results_path, covariates=Non
     return
         
 
-def main(path="./", groups=None, debug=False, use_linear_model=True, 
-         features=None, sides=None, covariates=None, 
+def main(path="./", debug=False, use_linear_model=True,
+         features=['area'], sides=['r'], covariate_file=None, 
          formula=None, correction_method='fdr_bh'):
     
     if debug:
@@ -486,27 +458,34 @@ def main(path="./", groups=None, debug=False, use_linear_model=True,
     
     try:
         
-        participant_df = load_participants(path)
-        full_dataframe = load_data(path, participant_df)
+        covariate_df = load_covariates(path, covariate_file)
+        full_dataframe = load_data(path, covariate_df)
         
-        result_path = op.join(path, "stats")
+        result_path = op.join(path, f"stats-{covariate_file[:-5] if covariate_file else 'participants'}")
         os.makedirs(result_path, exist_ok=True)
         
         # TODO: change covariates with variables
-        covariates = participant_df.columns.tolist()
+        covariates = covariate_df.columns.tolist()
         covariates.remove('subject')
         
+        if debug:
+            logging.basicConfig(level=logging.DEBUG)
         
-        generate_statistics(dataframe=full_dataframe, features=features, sides=sides, results_path=result_path,
-                            covariates=covariates, image_type='normalized', formula=formula,
-                            correction_method=correction_method, kind='segment', p_value=0.05)
+        logger.info("Starting statistical analysis")
+        if use_linear_model:
+            logger.info(f"Formula: {formula if formula else 'auto-generated'}")
+            logger.info(f"Covariates: {covariates if covariates else 'all'}")
+            logger.info(f"Correction: {correction_method}")
+    
         
-        generate_statistics(dataframe=full_dataframe, features=features, sides=sides, results_path=result_path,
-                            covariates=covariates, image_type='normalized', formula=formula,
-                            correction_method=correction_method, kind='slice', p_value=0.05)
+        for kind in ['segment', 'slice']:
+            
+            generate_statistics(dataframe=full_dataframe, features=features, sides=sides, results_path=result_path,
+                                covariates=covariates, image_type='normalized', formula=formula, 
+                                use_linear_model=use_linear_model,
+                                correction_method=correction_method, kind=kind, p_value=0.05)
         
 
-        
         logger.info("Analysis completed successfully")
         return 
         
@@ -514,26 +493,5 @@ def main(path="./", groups=None, debug=False, use_linear_model=True,
         logger.error(f"Error: {e}")
         raise
 
-
-if __name__ == '__main__':
-    import argparse
-    
-    parser = argparse.ArgumentParser(description="Statistical analysis for aVP-Toolbox")
-    parser.add_argument("--path", type=str, default="./")
-    parser.add_argument("--groups", type=str, nargs='+')
-    parser.add_argument("--features", type=str, nargs='+', default=['area'], help="Features to analyze (e.g. area, diameter).")
-    parser.add_argument("--side", type=str, nargs='+', choices=['r', 'l', 'both'], default='both', help="Side to analyze (r, l, or both).")
-    parser.add_argument("--debug", action="store_true")
-    parser.add_argument("--use-lm", action="store_true")
-    parser.add_argument("--covariates", type=str, nargs='+')
-    parser.add_argument("--formula", type=str)
-    parser.add_argument("--correction", type=str, default='fdr_bh',
-                       choices=['bonferroni', 'fdr_bh', 'fdr_by', 'holm', 'hommel'])
-    
-    args = parser.parse_args()
-    
-    main(path=args.path, groups=args.groups, debug=args.debug, features=args.features, 
-         sides=args.side, use_linear_model=args.use_lm, covariates=args.covariates,
-         formula=args.formula, correction_method=args.correction)
     
     
