@@ -90,7 +90,7 @@ do
 		fslmaths ${ii}/onl_normalized_4bc_iso06.nii.gz -thr 2 -uthr 2 -bin ${ii}/l_norm_iso06_iCan
 		fslmaths ${ii}/onl_normalized_4bc_iso06.nii.gz -thr 4 -uthr 4 -bin ${ii}/l_norm_iso06_iCran
 		fslmaths ${ii}/onl_normalized_4bc_iso06.nii.gz -thr 8 -uthr 8 -bin ${ii}/l_norm_iso06_OC
-        	fslmaths ${ii}/onl_normalized_4bc_iso06.nii.gz -thr 16 -uthr 16 -bin ${ii}/l_norm_iso06_OT
+        fslmaths ${ii}/onl_normalized_4bc_iso06.nii.gz -thr 16 -uthr 16 -bin ${ii}/l_norm_iso06_OT
 		
 		fslmaths ${ii}/onr_normalized_4bc_iso06.nii.gz -thr 1 -uthr 1 -bin ${ii}/r_norm_iso06_iOrb
 		fslmaths ${ii}/onr_normalized_4bc_iso06.nii.gz -thr 2 -uthr 2 -bin ${ii}/r_norm_iso06_iCan

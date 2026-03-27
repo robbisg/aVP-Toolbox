@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            width: 250px;
+            background-color: #2c3e50;
+            padding-top: 20px;
+            overflow-y: auto;
+        }
+        .sidebar .nav-link {
+            color: #ecf0f1;
+            padding: 15px 20px;
+            border-left: 4px solid transparent;
+            transition: all 0.3s;
+        }
+        .sidebar .nav-link:hover {
+            background-color: #34495e;
+            border-left-color: #3498db;
+        }
+        .sidebar .nav-link.active {
+            background-color: #34495e;
+            border-left-color: #3498db;
+            font-weight: bold;
+        }
+        .sidebar .scan-count {
+            font-size: 0.85rem;
+            color: #95a5a6;
+            margin-left: 5px;
+        }
+        .main-content {
+            margin-left: 250px;
+            padding: 40px;
+        }
+        .content-card {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .info-table {
+            margin-top: 20px;
+        }
+        .info-table td {
+            padding: 8px;
+        }
+        .info-table td:first-child {
+            font-weight: bold;
+            color: #2c3e50;
+            width: 40%;
+        }
+        .scan-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        .scan-section h3 {
+            color: #2c3e50;
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 30px;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+        }
+        .sidebar-header {
+            color: #ecf0f1;
+            padding: 0 20px 20px 20px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border-bottom: 1px solid #34495e;
+            margin-bottom: 20px;
+        }
+        .scan-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .legend-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+        }
+        .legend-info strong {
+            display: block;
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+        .legend-item {
+            display: inline-block;
+            margin-right: 20px;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar Menu -->
+    <div class="sidebar">
+        <div class="sidebar-header">aVP-Toolbox Report</div>
+        <nav class="nav flex-column">
+            {% for subject in subjects %}
+            <a class="nav-link {% if loop.first %}active{% endif %}" 
+               href="#{{ subject.id }}" 
+               onclick="showSubject('{{ subject.id }}')">
+                {{ subject.name }}
+                <span class="scan-count">({{ subject.n_scans }} scans)</span>
+            </a>
+            {% endfor %}
+        </nav>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        {% for subject in subjects %}
+        <div id="{{ subject.id }}" class="subject-content" style="{% if not loop.first %}display: none;{% endif %}">
+            <h1>{{ subject.name }}</h1>
+            <p class="text-muted">Total scans: {{ subject.n_scans }}</p>
+            
+            <!-- Morphometry Feature Plots -->
+            <div class="content-card">
+                <h2>📈 Morphometry Analysis</h2>
+                <div class="legend-info">
+                    <strong>Color Legend:</strong>
+                    <div class="legend-item">
+                        <span style="color: #e74c3c;">●</span> <strong>Red:</strong> Left side
+                    </div>
+                    <div class="legend-item">
+                        <span style="color: #3498db;">●</span> <strong>Blue:</strong> Right side
+                    </div>
+                </div>
+                {{ subject.feature_plot | safe }}
+            </div>
+            
+            <!-- Combined NIfTI Image Viewers -->
+            <div class="content-card">
+                <h2>📷 Image Viewers - All Scans</h2>
+                {{ subject.images | safe }}
+            </div>
+            
+            <!-- Individual Scan Information -->
+            <div class="content-card">
+                <h2>ℹ️ Scan Information</h2>
+                <div class="scan-grid">
+                    {% for scan_info in subject.scans_info %}
+                    <div class="scan-section">
+                        <h3>{{ scan_info['Scan Name'] }}</h3>
+                        <table class="info-table table table-sm table-borderless">
+                            {% for key, value in scan_info.items() %}
+                            {% if key != 'Scan Name' %}
+                            <tr>
+                                <td>{{ key }}:</td>
+                                <td>{{ value }}</td>
+                            </tr>
+                            {% endif %}
+                            {% endfor %}
+                        </table>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <script>
+        function showSubject(subjectId) {
+            // Hide all subjects
+            document.querySelectorAll('.subject-content').forEach(el => {
+                el.style.display = 'none';
+            });
+            
+            // Show selected subject
+            document.getElementById(subjectId).style.display = 'block';
+            
+            // Update active menu item
+            document.querySelectorAll('.sidebar .nav-link').forEach(el => {
+                el.classList.remove('active');
+            });
+            event.target.classList.add('active');
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
