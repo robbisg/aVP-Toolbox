@@ -217,7 +217,7 @@ def plot_nerve_maps_with_stats(nerve_map, param_name, key, stat_type, path_map):
     feature, side = key.split('_')
     
     if stat_type == 'p_uncorrected':
-        title = f'{feature.capitalize()} - {param_name}\nUncorrected (p<0.05)
+        title = f'{feature.capitalize()} - {param_name}\nUncorrected (p<0.05)'
     elif stat_type == 'p_corrected':
         title = f'{feature.capitalize()} - {param_name}\nCorrected (p<0.05, fdr)'
     elif stat_type == 'coef':
