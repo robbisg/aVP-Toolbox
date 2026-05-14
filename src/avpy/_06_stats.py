@@ -85,6 +85,7 @@ def load_data(path, covariate_df):
     results_fname = op.join(path, "results", "CSA_slice_iso.xlsx")
     logger.info(f"Loading results from: {results_fname}")
     dataframe = pd.read_excel(results_fname)
+  
     
     # Join dataframe by id
     full_dataframe = pd.merge(dataframe, covariate_df, on='subject', how='inner')
@@ -198,6 +199,11 @@ def calculate_statistics_lm(full_dataframe, features, sides, kind='segment',
     
     for feature in features:
         for side in sides:
+            
+            if feature not in full_dataframe.columns:
+                logger.warning(f"Feature '{feature}' not found in dataframe columns. Skipping.")
+                continue
+            
             df = filter_dataframe(full_dataframe, 
                                   side=[side], 
                                   image_type=[image_type])

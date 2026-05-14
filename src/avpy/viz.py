@@ -217,9 +217,9 @@ def plot_nerve_maps_with_stats(nerve_map, param_name, key, stat_type, path_map):
     feature, side = key.split('_')
     
     if stat_type == 'p_uncorrected':
-        title = f'{feature.capitalize()} - {param_name}\nUncorrected p-value'
+        title = f'{feature.capitalize()} - {param_name}\nUncorrected (p<0.05)'
     elif stat_type == 'p_corrected':
-        title = f'{feature.capitalize()} - {param_name}\nCorrected p-value'
+        title = f'{feature.capitalize()} - {param_name}\nCorrected (p<0.05, fdr)'
     elif stat_type == 'coef':
         title = f'{feature.capitalize()} - {param_name}\nCoefficient'
     else:
@@ -331,10 +331,13 @@ def plot_segment_statistics_lm(segment_stats_df, path_map, contrasts=None):
                 ax.axhline(y=0, color='black', linestyle='--', linewidth=1)
                 ax.set_xlabel('Segment', fontsize=12)
                 ax.set_ylabel(f'{contrast_name} coefficient', fontsize=12)
-                ax.set_title(f'Side: {side.upper()}', fontsize=14, fontweight='bold')
+                ax.set_title(f'{contrast_name} coefficient', fontsize=14, fontweight='bold')
                 ax.set_xticks(x_pos)
                 ax.set_xticklabels(segments_plot, rotation=45, ha='right')
                 ax.grid(axis='y', alpha=0.3)
+            
+            ax.annotate(f'* p<0.05, ** p<0.01, *** p<0.001 (fdr-corrected)', 
+                        xy=(0.5, -0.15), xycoords='axes fraction', ha='center', fontsize=10)
             
             fig.suptitle(f'{feature.capitalize()} - {contrast_name} Effect (corrected)', 
                         fontsize=16, fontweight='bold', y=0.98)
