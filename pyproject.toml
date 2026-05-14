@@ -14,6 +14,7 @@ authors = [
   { name = "Roberto Guidotti" },
   { name = "Emanuele Pravatà" },
   { name = "Riccardo Navarra" },
+  { name = "Andrea Diociasi" },
 ]
 classifiers = [
   "Intended Audience :: Science/Research",
@@ -37,7 +38,9 @@ dependencies = [
   "seaborn",
   "sekupy",
   "pingouin",
-  "sentry-sdk"
+  "sentry-sdk",
+  "torch",
+  "pydicom"
 ]
 dynamic = ["version"]
 
@@ -69,6 +72,8 @@ tests = [
 
 [project.scripts]
 avpy = "avpy.main:main"
+avp_stats = "avpy._06_stats:main"
+avp_ai = "avpy._00_ai:main"
 
 [project.urls]
 homepage = ""
