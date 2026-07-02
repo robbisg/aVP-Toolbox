@@ -4,20 +4,12 @@ import nibabel as ni
 import matplotlib.pyplot as pl
 import pandas as pd
 import logging
+from avpy.config import SEGMENT_RANGES, ATLAS_NAME, ATLAS_PCT_THRESHOLD
 
 logger = logging.getLogger(__name__)
 
 parent_dir = op.dirname(op.dirname(op.dirname(op.abspath(__file__))))
 atlas_dir = op.join(parent_dir, "atlas")
-atlas_name = "aVP-24_prob50.nii.gz"
-
-segments = [
-    ('iOrb', 0, 36),
-    ('iCan', 37, 47),
-    ('iCran', 48, 73),
-    ('OC', 74, 84),
-    ('OT', 85, 101)
-]
 
 
 def plot_nerve(nerve_map, 
@@ -29,7 +21,7 @@ def plot_nerve(nerve_map,
                figsize=(10, 16)
                ):
     
-    background_image = ni.load(op.join(atlas_dir, atlas_name))
+    background_image = ni.load(op.join(atlas_dir, ATLAS_NAME))
     background_data = background_image.get_fdata()[:, ::-1, :]
     resolution = background_image.header['pixdim'][1]
     x_dim = background_data.shape[0]
@@ -81,7 +73,7 @@ def plot_nerve(nerve_map,
     ax.set_xlabel("x-length (mm)")  # Units added
     ax.set_ylabel("y-length (mm)")  # Units added
     
-    for segment_name, start_slice, end_slice in segments:
+    for segment_name, start_slice, end_slice in SEGMENT_RANGES:
         slice_position = (start_slice + end_slice) / 2
         y_pos = start_slice - .5
         ax.hlines(y=y_pos, xmin=0, xmax=x_dim, colors='white', linestyles='dashed', linewidth=1, zorder=50)

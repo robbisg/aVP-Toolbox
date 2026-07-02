@@ -3,8 +3,8 @@ import numpy as np
 import nibabel as nib
 import pandas as pd
 from skimage import measure
-
 import logging
+from avpy.config import LABEL_TO_NAME
 logger = logging.getLogger(__name__)
 
 NAME = "normalize_stats"
@@ -16,15 +16,6 @@ def main(path="./", debug=False):
     if debug:
         logging.basicConfig(level=logging.DEBUG)
     
-    segment_types = {
-        16: "OT",
-        8: "OC",
-        4: "iCran",
-        2: "iCan",
-        1: "iOrb"
-    }
-
-    # Read study path from control file
     StudyPath = path
         
     #StudyPath = "/home/robbis/git/aVP-toolbox/data/test/"
@@ -108,7 +99,9 @@ def main(path="./", debug=False):
                     n_total_area += 1
                     total_area += area
                     segment_area += area
-                                        
+                    
+                    current_slice_idx += 1
+
                     if current_slice_idx > 1:
                         
                         previous_voxel_value = cc_value[current_slice_idx-1]['max_voxel_value']
@@ -124,7 +117,7 @@ def main(path="./", debug=False):
                                     'side': side,
                                     'image_type': image_type,
                                     'segment_type': previous_voxel_value,
-                                    'segment_name': segment_types[previous_voxel_value],
+                                    'segment_name': LABEL_TO_NAME[previous_voxel_value],
                                     'segment_length': segment_length,
                                     'area': segment_area / n_segment_area
                                 }
@@ -140,9 +133,7 @@ def main(path="./", debug=False):
                             
                     total_length += y_resolution
                     segment_length += y_resolution
-                    
-                    current_slice_idx += 1
-                    
+                                        
                     slice_data = {
                         'subject': subject,
                         'side': side,
@@ -150,7 +141,7 @@ def main(path="./", debug=False):
                         'current_slice_yz': current_slice_idx,
                         'original_slice_yz': y,
                         'max_voxel_value': max_voxel_value,
-                        'segment_name': segment_types[max_voxel_value],
+                        'segment_name': LABEL_TO_NAME[max_voxel_value],
                         'distance': y_resolution,
                         'majaxis': props[0].major_axis_length * x_resolution,
                         'minaxis': props[0].minor_axis_length * z_resolution,
@@ -196,7 +187,7 @@ def main(path="./", debug=False):
                         'side': side,
                         'image_type': image_type,
                         'segment_type': voxel_value,
-                        'segment_name': segment_types[voxel_value],
+                        'segment_name': LABEL_TO_NAME[voxel_value],
                         'length_on': total_length,
                         'segment_length': segment_length,
                         'area': segment_area / n_segment_area

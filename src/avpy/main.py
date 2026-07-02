@@ -76,20 +76,9 @@ def main():
     )
 
     parser = argparse.ArgumentParser(description="aVP-toolbox: Analysis tools for optic nerve processing")
+    
     parser.add_argument(
-        "--debug", 
-        action="store_true", 
-        dest="debug",
-        help="Enable debug mode for more verbose output.")
-    parser.add_argument(
-        "--root-dir",
-        dest="root_dir",
-        default="./",
-        help="Directory of the data to process.",
-    )
-    parser.add_argument(
-        "--steps",
-        dest="steps",
+        "steps",
         default="all",
         help=dedent(
             """\
@@ -101,6 +90,17 @@ def main():
         
         Available steps: prep, segmentation_prep, affine_prep, basics, normalize, resample, normalize_stats, atlas, stats"""
         ),
+    )
+    parser.add_argument(
+        "--debug", 
+        action="store_true", 
+        dest="debug",
+        help="Enable debug mode for more verbose output.")
+    parser.add_argument(
+        "--root-dir",
+        dest="root_dir",
+        default="./",
+        help="Directory of the data to process.",
     )
     parser.add_argument(
         "--deriv_root",
@@ -120,7 +120,7 @@ def main():
     )
     # Add argument from stats function
     parser.add_argument("--features", type=str, nargs='+', default=['area'], help="Features to analyze (e.g. area, eccentricity).")
-    parser.add_argument("--side", type=str, nargs='+', choices=['r', 'l', 'both'], default='both', help="Side to analyze (r, l, or both).")
+    parser.add_argument("--sides", type=str, nargs='+', choices=['r', 'l', 'both'], default='both', help="Side to analyze (r, l, or both).")
     parser.add_argument("--use-lm", action="store_true", default=True)
     parser.add_argument("--covariate_file", type=str,
                         default="participants.xlsx", 
@@ -168,6 +168,7 @@ def main():
                     covariate_file=options.covariate_file,
                     formula=options.formula, 
                     correction_method=options.correction,
+                    sides=options.sides,
                     debug=options.debug
                 )
             else:

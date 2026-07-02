@@ -33,19 +33,12 @@ import numpy as np
 import seaborn as sns
 from pathlib import Path
 import logging
+from avpy.config import SEGMENT_RANGES
 
 logger = logging.getLogger(__name__)
 NAME = "plot_features"
 
 plt.style.use('seaborn-v0_8')
-
-fixed_segments = [
-    ('iOrb', 0, 36),
-    ('iCan', 37, 47),
-    ('iCran', 48, 73),
-    ('OC', 74, 84),
-    ('OT', 85, 101)
-]
 
 def create_feature_lineplot(df, feature, x_axis='current_slice_yz', group_by='subject', 
                             image_type='linearized', output_path=None):
@@ -112,7 +105,7 @@ def create_feature_lineplot(df, feature, x_axis='current_slice_yz', group_by='su
             ax.plot(avg['x'], avg['y'], linewidth=3, color='darkblue', label='Average')
             
         if 'normalized' in ax.get_title().lower():
-            for segment_name, start_slice, end_slice in fixed_segments:
+            for segment_name, start_slice, end_slice in SEGMENT_RANGES:
                 boundary = end_slice + 0.5
                 ax.axvline(x=boundary, color='gray', linewidth=.8, linestyle='--')
                 text_x = (start_slice + end_slice) * .5

@@ -26,6 +26,7 @@ import nibabel as nib
 import numpy as np
 from nilearn import image
 import logging
+from avpy.config import NAME_TO_LABEL, ISO_NORMALIZE_SUFFIX
 logger = logging.getLogger(__name__)
 
 NAME = "doatlas"
@@ -49,9 +50,7 @@ def create_probability_maps(path, subjects, region_name=None, region_value=None,
     
     im_path = os.path.join(path, "data", "proc")
     templ_path = os.path.join(path, "templates")
-    norm_image_suffix = "_normalized_4bc_iso06.nii.gz"
-    
-    suffix = f"_norm_iso06_{region_name}" if region_name else norm_image_suffix
+    suffix = f"_norm_iso06_{region_name}" if region_name else ISO_NORMALIZE_SUFFIX
     
     # Initialize maps
     r_map = None
@@ -142,15 +141,6 @@ def main(path="./", debug=False):
     if debug:
         logging.basicConfig(level=logging.DEBUG)
     
-    # Define regions and their values
-    regions = {
-        'iOrb': 1,
-        'iCan': 2,
-        'iCran': 4,
-        'OC': 8,
-        'OT': 16
-    }
-
     # Set paths
     im_path = os.path.join(study_path, "data", "proc")
     templ_path = os.path.join(study_path, "templates")
@@ -158,9 +148,6 @@ def main(path="./", debug=False):
 
     # Create template directory if it doesn't exist
     os.makedirs(templ_path, exist_ok=True)
-
-    # Define normalized image suffix
-    norm_image_suffix = "_normalized_4bc_iso06.nii.gz"
 
     # Read subject list
     with open(sbj_list_path, 'r') as f:
@@ -176,23 +163,17 @@ def main(path="./", debug=False):
     for sbj in subjects:
         sbj_dir = os.path.join(im_path, sbj)
         logger.info(f"Splitting {sbj} into anatomical subdivisions")
-        
-        # Process left and right
+
         for side in ['l', 'r']:
-            input_file = f"on{side}{norm_image_suffix}"
-            input_path = os.path.join(sbj_dir, input_file)
-            
-            # Create binary mask for each region
-            for region_name, region_value in regions.items():
+            input_path = os.path.join(sbj_dir, f"on{side}{ISO_NORMALIZE_SUFFIX}")
+
+            for region_name, region_value in NAME_TO_LABEL.items():
                 output_path = os.path.join(sbj_dir, f"{side}_norm_iso06_{region_name}.nii.gz")
-                
-                # Create binary mask where voxels equal to region_value are set to 1
                 threshold_img = image.math_img(f"(img == {region_value}.).astype(np.int8)", img=input_path)
                 nib.save(threshold_img, output_path)
 
     # Step 2: Create probability maps for each anatomical subdivision
-
-    for region_name, region_value in regions.items():
+    for region_name, region_value in NAME_TO_LABEL.items():
         logger.debug(f"Creating probability map for {region_name}")
         sbj_count = create_probability_maps(study_path, subjects, region_name, region_value, debug=debug)
         logger.info(f"{region_name} probability mask created from {sbj_count} subjects.")

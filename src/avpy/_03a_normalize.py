@@ -42,6 +42,10 @@ from skimage import measure
 import sys
 import sentry_sdk
 import logging
+from avpy.config import (
+    LABEL_TO_NAME, RESOLUTION_INCREASE, MAX_SLICES,
+    NORMALIZED_N_SLICES, LINEARIZE_SUFFIX, NORMALIZE_SUFFIX,
+)
 logger = logging.getLogger(__name__)
 
 NAME = "normalize"
@@ -60,10 +64,6 @@ def main(path="./", debug=False):
     outImPath = os.path.join(StudyPath, 'data', 'proc')
     outResPath = os.path.join(StudyPath, 'results')
 
-    # Define image output file names
-    Lin4image = '_linearize_4bc.nii.gz'
-    Norm4image = '_normalized_4bc.nii.gz'
-
     sides = ['l', 'r']
     isbj = 0
 
@@ -74,8 +74,7 @@ def main(path="./", debug=False):
     with open(os.path.join(StudyPath, 'data', 'sbj.list'), 'r') as fileID:
         subject_list = [line.strip() for line in fileID]
 
-    resolution_increase = 10
-    max_slices = 160 * resolution_increase
+    max_slices = MAX_SLICES
 
     # This is used to collect and save all single-slice, single-subject data
     dataframe = []
@@ -87,14 +86,6 @@ def main(path="./", debug=False):
     # TODO: Consider to use a progress bar for better user experience
     # TODO: Consider to create a subject function to encapsulate the logic
 
-    segment_types = {
-        16: "OT",
-        8:  "OC",
-        4:  "iCran",
-        2:  "iCan",
-        1:  "iOrb"
-    }
-    
     if debug:
         hres_l = []
         hres_r = []
@@ -258,10 +249,10 @@ def main(path="./", debug=False):
                 residual_distance = distance - (y_resolution * factor)
                 
                 n_slices = round(distance / y_resolution)
-                n_slices_upsampled = round(distance / y_resolution * 10)
+                n_slices_upsampled = round(distance / y_resolution * RESOLUTION_INCREASE)
             
                 slice_gap = round(residual_distance / y_resolution)
-                slice_gap_upsampled = round(residual_distance / y_resolution * 10)
+                slice_gap_upsampled = round(residual_distance / y_resolution * RESOLUTION_INCREASE)
 
                 length_optical_nerve += distance
                 length_optical_nerve_gap += (slice_gap_upsampled * y_resolution / 10 + y_resolution)    
@@ -282,7 +273,7 @@ def main(path="./", debug=False):
                 slice_data['original_slice_yz'] = y
                 
                 try:
-                    slice_data['segment_name'] = segment_types[int(max_voxel_value)]
+                    slice_data['segment_name'] = LABEL_TO_NAME[int(max_voxel_value)]
                 except Exception as e:
                     sentry_sdk.capture_exception(e)
                     logger.error(f"{e}")
@@ -308,7 +299,7 @@ def main(path="./", debug=False):
                 
                 slice_data['average_area'] = 0
                 slice_data['partial_length'] = 0
-                slice_data['total_length'] = 0
+                slice_data['totalou _length'] = 0
                 
                 slice_data['distance'] = distance
                 slice_data['slice_gap'] = slice_gap
@@ -347,7 +338,7 @@ def main(path="./", debug=False):
             # Build the linearized volume
             logger.debug("Nerve Interpolation...")
             
-            upsampled_slices = sliceframe['slice_gap_upsampled'].values + resolution_increase
+            upsampled_slices = sliceframe['slice_gap_upsampled'].values + RESOLUTION_INCREASE
             total_slices_upsampled = upsampled_slices.sum() + 10
             
             if total_slices_upsampled >= max_slices:
@@ -378,7 +369,7 @@ def main(path="./", debug=False):
                 # Get the number of slices to be inserted          
                 minislices = upsampled_slices[i]
                 
-                tba_minislices = minislices - resolution_increase                    
+                tba_minislices = minislices - RESOLUTION_INCREASE
                 
                 for k in range(tba_minislices):        
                                     
@@ -390,13 +381,11 @@ def main(path="./", debug=False):
 
                     slice_counter += 1
                     
-                interval = slice(slice_counter, slice_counter + resolution_increase)
-                
                 hres_linear_image[
-                    :, slice_counter:slice_counter + resolution_increase, :
+                    :, slice_counter:slice_counter + RESOLUTION_INCREASE, :
                 ] = nifti_data[:, y_curr, :][:, np.newaxis, :]
-                
-                slice_counter += resolution_increase + 1
+
+                slice_counter += RESOLUTION_INCREASE + 1
                 slice_counter_vector.append(slice_counter)
                                     
             # Fill hole - if neighboring slices not zero, copy in slice after
@@ -419,7 +408,7 @@ def main(path="./", debug=False):
             # Create header for the new image
             new_affine = nifti_img.affine.copy()
             # Adjust y-axis spacing
-            new_affine[1, 1] = new_affine[1, 1] / resolution_increase
+            new_affine[1, 1] = new_affine[1, 1] / RESOLUTION_INCREASE
             new_affine[:3, :3] = new_affine[:3, :3] * np.eye(3)
             
             if debug:
@@ -430,27 +419,24 @@ def main(path="./", debug=False):
             
             # Create a new image with the linearized data
             lin_img = nib.Nifti1Image(hres_linear_image, new_affine, nifti_img.header)
-            lin_img.header['pixdim'][2] = nifti_img.header['pixdim'][2] / resolution_increase  # Adjust y resolution
+            lin_img.header['pixdim'][2] = nifti_img.header['pixdim'][2] / RESOLUTION_INCREASE
             
             # Save the linearized image
-            nib.save(lin_img, os.path.join(outImPath, subject, f"on{side}{Lin4image}"))
+            nib.save(lin_img, os.path.join(outImPath, subject, f"on{side}{LINEARIZE_SUFFIX}"))
             
-            # Normalize the data
-            normalized_n_slices = 104 * resolution_increase + 1
-            slice_length = round(cc_value[-1]['length_on'] / (nifti_img.header['pixdim'][2] / 10))
-            lengthfactor = normalized_n_slices / slice_length
-            
-            normalized_image = np.zeros((x_dim, normalized_n_slices, z_dim), dtype=np.float32)
+            slice_length = round(cc_value[-1]['length_on'] / (nifti_img.header['pixdim'][2] / RESOLUTION_INCREASE))
+            lengthfactor = NORMALIZED_N_SLICES / slice_length
 
-            check_range = np.zeros(normalized_n_slices, dtype=int)
-            
+            normalized_image = np.zeros((x_dim, NORMALIZED_N_SLICES, z_dim), dtype=np.float32)
+            check_range = np.zeros(NORMALIZED_N_SLICES, dtype=int)
+
             logger.debug("Normalization...")
-            
-            for ii in range(normalized_n_slices):
+
+            for ii in range(NORMALIZED_N_SLICES):
                 # Figure out slice in aligned that needs to go 
                 # into the ii-th slice of the normalized
                 
-                jj = round(ii / normalized_n_slices * slice_counter)  
+                jj = round(ii / NORMALIZED_N_SLICES * slice_counter)
                 
                 if jj < 1:
                     jj = 1
@@ -465,7 +451,7 @@ def main(path="./", debug=False):
             
             # Create and save normalized image
             norm_img = nib.Nifti1Image(normalized_image, new_affine, lin_img.header)
-            nib.save(norm_img, os.path.join(outImPath, subject, f"on{side}{Norm4image}"))
+            nib.save(norm_img, os.path.join(outImPath, subject, f"on{side}{NORMALIZE_SUFFIX}"))
     
     if debug:
         # Save the high-resolution images for debugging
@@ -475,8 +461,8 @@ def main(path="./", debug=False):
         hres_l_img = nib.Nifti1Image(hres_l, new_affine)
         hres_r_img = nib.Nifti1Image(hres_r, new_affine)
         
-        nib.save(hres_l_img, os.path.join(outImPath, "upsampled_l" + Lin4image))
-        nib.save(hres_r_img, os.path.join(outImPath, "upsampled_r" + Lin4image))
+        nib.save(hres_l_img, os.path.join(outImPath, "upsampled_l" + LINEARIZE_SUFFIX))
+        nib.save(hres_r_img, os.path.join(outImPath, "upsampled_r" + LINEARIZE_SUFFIX))
                 
     logger.info("Processing complete!")
     

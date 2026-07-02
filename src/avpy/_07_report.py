@@ -295,18 +295,12 @@ def generate_report(subjects_data, processed_df, output_file='mri_report.html'):
         subjects_in_df = []
     
     for subject_name in subjects_in_df:
+        subject_key = str(subject_name)  # Ensure it's a string for consistent handling
         # Filter data for this subject
         subject_df = processed_df[processed_df['subject'] == subject_name]
         
         # Create feature plots from processed data
         feature_plot = create_combined_feature_plot(subject_df, subject_name)
-        
-        # Here subject may be a int or str - ensure consistent key type
-        if isinstance(subject_name, int):
-            subject_key = f"{subject_name:02d}"
-            logger.debug(f"INT: Processing subject: {subject_name} as key {subject_key}")
-        else:
-            subject_key = f"00{subject_name}"
         
         # Get image data if available
         logger.debug(f"Processing subject: {subject_name} (key: {subject_key})")
@@ -432,6 +426,8 @@ def collect_subject_data(path="./", debug=False):
                         })
                     except Exception as e:
                         logger.error(f"Failed to load {nifti_file}: {e}")
+                else:
+                    logger.warning(f"Missing {nifti_file} for {subject_name}")
         
         # If we found data, stop searching
         if subjects_data:

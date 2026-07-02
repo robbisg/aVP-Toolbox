@@ -22,6 +22,7 @@ import nibabel as nib
 from pathlib import Path
 from nilearn.image import resample_img
 import logging
+from avpy.config import VOXEL_SIZE_MM, NORM_TARGET_SHAPE, LINEARIZE_SUFFIX, NORMALIZE_SUFFIX
 logger = logging.getLogger(__name__)
 
 NAME = "resample"
@@ -62,9 +63,8 @@ def process_images(study_path, base_image, debug=True):
             # Create a new image with modified header
             modified_img = nib.Nifti1Image(img.get_fdata(), img.affine, header)
             
-            # Resample to isotropic 0.6mm resolution
-            # This replaces flirt -applyisoxfm 0.6
-            resampling = np.array([0.6, 0.6, 0.6, 1]) * np.sign(np.diag(img.affine))
+            # Resample to isotropic resolution (replaces flirt -applyisoxfm 0.6)
+            resampling = np.array([VOXEL_SIZE_MM, VOXEL_SIZE_MM, VOXEL_SIZE_MM, 1]) * np.sign(np.diag(img.affine))
             
             target_affine = np.diag(resampling)
             target_affine[0, 3] = img.affine[0, 3]
@@ -73,9 +73,9 @@ def process_images(study_path, base_image, debug=True):
             
             # Use nearest neighbor interpolation for discrete data
             if 'normalized' in base_image:
-                target_shape=(250, 102, 72)
+                target_shape = NORM_TARGET_SHAPE
             else:
-                target_shape=None
+                target_shape = None
             
             resampled_img = resample_img(
                 modified_img,
@@ -120,13 +120,11 @@ def main(path="./", debug=False):
     if debug:
         logging.basicConfig(level=logging.DEBUG)    
     
-    # Process linearized images
     logger.info("Resampling linearized images...")
-    process_images(study_path, "_linearize_4bc.nii.gz", debug=debug)
-    
-    # Process normalized images
+    process_images(study_path, LINEARIZE_SUFFIX, debug=debug)
+
     logger.info("Resampling normalized images...")
-    process_images(study_path, "_normalized_4bc.nii.gz", debug=debug)
+    process_images(study_path, NORMALIZE_SUFFIX, debug=debug)
 
 if __name__ == "__main__":
     main()

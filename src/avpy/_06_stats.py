@@ -33,28 +33,17 @@ import pingouin as pg
 import logging
 from statsmodels.stats.multitest import multipletests
 from avpy.viz import plot_segment_statistics, plot_segment_statistics_lm, plot_nerve_maps_with_stats
+from avpy.config import SEGMENT_RANGES, ATLAS_NAME, ATLAS_PCT_THRESHOLD
 
 logger = logging.getLogger(__name__)
 NAME = "stats"
 
-# Initialize atlas paths
 parent_dir = op.dirname(op.dirname(op.dirname(op.abspath(__file__))))
 atlas_dir = op.join(parent_dir, "atlas")
-atlas_name = "aVP-24_prob50.nii.gz"
-
-percentage_threshold = 50
-
-segments = [
-    ('iOrb', 0, 36),
-    ('iCan', 37, 47),
-    ('iCran', 48, 73),
-    ('OC', 74, 84),
-    ('OT', 85, 101)
-]
 
 def create_nerve_map(dataframe, feature):
     
-    background_image = ni.load(op.join(atlas_dir, atlas_name))
+    background_image = ni.load(op.join(atlas_dir, ATLAS_NAME))
     atlas = background_image.get_fdata()[:, ::-1, :]
     n_slices = atlas.shape[1]
     
@@ -63,7 +52,7 @@ def create_nerve_map(dataframe, feature):
                           atlas.shape[2]))
     
     for y in range(n_slices):
-        nerve_map[:, y, :][atlas[:, y, :] >= percentage_threshold] = dataframe[feature].values[y]
+        nerve_map[:, y, :][atlas[:, y, :] >= ATLAS_PCT_THRESHOLD] = dataframe[feature].values[y]
         
     return nerve_map
 
@@ -284,7 +273,7 @@ def create_statistical_nerve_maps(segment_stats_df, param_name='group[T.PTS]', s
     
     nerve_maps = {}
     
-    atlas_path = op.join(atlas_dir, atlas_name)
+    atlas_path = op.join(atlas_dir, ATLAS_NAME)
     atlas = ni.load(atlas_path)
     atlas_data = atlas.get_fdata()[:, ::-1, :]
     n_slices = atlas.shape[1]
@@ -315,7 +304,7 @@ def create_statistical_nerve_maps(segment_stats_df, param_name='group[T.PTS]', s
                 segment_name = row['segment']
                 value = row[col_name]
                 
-                segment_info = next((s for s in segments if s[0] == segment_name), None)
+                segment_info = next((s for s in SEGMENT_RANGES if s[0] == segment_name), None)
                 if segment_info is None:
                     continue
                 
@@ -323,7 +312,7 @@ def create_statistical_nerve_maps(segment_stats_df, param_name='group[T.PTS]', s
                 
                 for y in range(start_slice, end_slice + 1):
                     if y < n_slices:
-                        nerve_map[:, y, :][atlas_data[:, y, :] >= percentage_threshold] = value
+                        nerve_map[:, y, :][atlas_data[:, y, :] >= ATLAS_PCT_THRESHOLD] = value
             
             nerve_maps[f'{feature}_{side}'] = nerve_map
     
@@ -334,7 +323,7 @@ def create_slice_nerve_maps(slice_stats_df, param_name, stat_type='coef'):
     
     nerve_maps = {}
     
-    atlas_path = op.join(atlas_dir, atlas_name)
+    atlas_path = op.join(atlas_dir, ATLAS_NAME)
     atlas = ni.load(atlas_path)
     atlas_data = atlas.get_fdata()[:, ::-1, :]
     
@@ -362,7 +351,7 @@ def create_slice_nerve_maps(slice_stats_df, param_name, stat_type='coef'):
                 y = int(row['slice'])
                 value = row[col_name]
                 if y < atlas_data.shape[1]:
-                    nerve_map[:, y, :][atlas_data[:, y, :] >= percentage_threshold] = value
+                    nerve_map[:, y, :][atlas_data[:, y, :] >= ATLAS_PCT_THRESHOLD] = value
             
             nerve_maps[f'{feature}_{side}'] = nerve_map
     

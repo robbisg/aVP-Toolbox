@@ -24,6 +24,7 @@ import numpy as np
 from nilearn import image
 from scipy.ndimage import center_of_mass
 import logging
+from avpy.config import VOXEL_SIZE_MM, ORIG_TARGET_SHAPE
 logger = logging.getLogger(__name__)
 
 NAME = "affine_prep"
@@ -77,7 +78,7 @@ def check_and_fix_sform_qform(img):
     return nib.Nifti1Image(img.get_fdata(), img.affine, header)
 
 
-def resample_to_isotropic(img, target_resolution=0.6):
+def resample_to_isotropic(img, target_resolution=VOXEL_SIZE_MM):
     """Resample image to isotropic voxels if needed."""
     target_voxel_size = (target_resolution, target_resolution, target_resolution)
     
@@ -97,7 +98,7 @@ def resample_to_isotropic(img, target_resolution=0.6):
     return img
 
 
-def resample_to_target_shape(img, target_shape=(256, 256, 72)):
+def resample_to_target_shape(img, target_shape=ORIG_TARGET_SHAPE):
     """Resample image to target shape if needed."""
     current_shape = img.get_fdata().shape
     
